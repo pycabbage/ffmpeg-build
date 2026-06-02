@@ -42,8 +42,11 @@ if [ ! -e "${PREFIX}/bin/python" ]; then
   ln -sf "${PREFIX}/bin/python3" "${PREFIX}/bin/python"
 fi
 
-# Ensure pip is present.
+# Ensure pip AND the build backend are present. Python 3.12+ ensurepip bundles pip but NOT
+# setuptools/wheel, yet meson.sh installs from an sdist with --no-build-isolation, which needs
+# setuptools.build_meta available. Provide a complete build env here.
 "${PREFIX}/bin/python3" -m ensurepip --upgrade
+"${PREFIX}/bin/python3" -m pip install --upgrade pip setuptools wheel
 
 "${PREFIX}/bin/python3" --version
 cleanup "${SRC}"
