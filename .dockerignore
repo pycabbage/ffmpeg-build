@@ -1,0 +1,32 @@
+# Keep the Docker build context tiny: the image fetches the FFmpeg source itself, so the
+# only things the build genuinely needs are the Dockerfile, scripts/ and README.md.
+
+# Locally extracted FFmpeg source tree / tarball (the image fetches its own copy)
+ffmpeg-*
+*.tar.xz
+*.tar.gz
+*.tar.bz2
+
+# Artifact output dir produced by `docker run -v "$PWD/out:/output"`
+out/
+output/
+
+# Git internals and VCS metadata
+.git
+.gitignore
+
+# Scratch / notes / logs left in the repo
+*.txt
+*.log
+
+# Editor / OS cruft
+.vscode
+.idea
+.DS_Store
+*~
+
+# Re-include the files the build genuinely needs (negations win)
+!Dockerfile
+!.dockerignore
+!scripts/
+!README.md
