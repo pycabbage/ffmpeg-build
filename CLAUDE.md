@@ -8,7 +8,7 @@ Docker リポジトリ。GPL + version3 + nonfree variant。
 
 - **build image = `docker build` で作られるビルド *環境*。FULL-BUILD（`docs/todo/001-full-build.md`）:
   apt はライブラリを一切 install しない。** apt は OS フロア + ブートストラップ seed
-  （`build-essential`/`curl`/`git`/`xz-utils`/`bzip2`/`patch`/`perl`/`gettext`/`texinfo`。自前 gcc を
+  （`build-essential`/`m4`/`curl`/`git`/`xz-utils`/`bzip2`/`patch`/`perl`/`gettext`/`texinfo`。自前 gcc を
   コンパイルするためだけの種コンパイラで、成果物には入らない）のみ。ツールチェイン（gcc/binutils +
   gmp/mpfr/mpc/isl）・ビルドツール（pkgconf/cmake/ninja/meson/nasm/yasm/autotools/python など）・
   全メディアライブラリ（約100）を **`scripts/deps/*.sh` で `/usr/local` にソースビルド**する。

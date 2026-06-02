@@ -43,11 +43,13 @@ ENV SRCROOT="/tmp/src"
 # --- bootstrap SEED only: OS-floor build tools needed to compile our own toolchain ----------
 # NO libraries, NO cmake/meson/ninja/nasm/yasm/pkg-config, NO patchelf — all built from source.
 # build-essential = seed gcc/g++/make/libc6-dev (+ kernel UAPI headers via linux-libc-dev).
-# perl/gettext/texinfo/patch are OS-floor tools many `./configure`/`make` steps invoke.
+# m4 is required by GMP's configure (phase 1, before our own m4 exists); perl/gettext/texinfo/
+# patch are OS-floor tools many `./configure`/`make` steps invoke.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         build-essential \
+        m4 \
         ca-certificates \
         curl \
         wget \

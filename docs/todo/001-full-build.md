@@ -21,7 +21,7 @@ status: implemented
 ### 完了したこと
 
 - **apt ライブラリ install を全廃。** `Dockerfile` の apt は OS フロア + ブートストラップ
-  seed（`build-essential`/`curl`/`git`/`perl`/`gettext`/`texinfo` など。自前 gcc をコンパイル
+  seed（`build-essential`/`m4`/`curl`/`git`/`perl`/`gettext`/`texinfo` など。自前 gcc をコンパイル
   するためだけの種コンパイラ。成果物には入らない）のみ。`-dev` ライブラリ・`cmake`/`meson`/
   `ninja`/`nasm`/`pkg-config`/`patchelf` は **一切 install しない**。
 - **すべてソースビルド。** ツールチェイン（`gcc`/`binutils` + `gmp`/`mpfr`/`mpc`/`isl`）、
