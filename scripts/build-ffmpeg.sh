@@ -19,6 +19,12 @@ SRC="/tmp/ffmpeg-src"
 
 # pkg-config must see /usr/local FIRST for the source-built libs.
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH:-}"
+# Relocatable RPATH for the FFmpeg binaries + libav* .so: our --disable-new-dtags ld bakes
+# LD_RUN_PATH as DT_RPATH at link time (no patchelf). Single-quoted so $ORIGIN stays literal.
+export LD_RUN_PATH='$ORIGIN:$ORIGIN/../lib:$ORIGIN/lib'
+# lib64 on the loader path so the in-image ffmpeg run (verification below) finds our
+# libstdc++/libgcc_s, which gcc installs under /usr/local/lib64.
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:/usr/local/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 # ---- download + extract source --------------------------------------------
 # The image does NOT bake FFmpeg source. We always download the requested release into a
@@ -241,11 +247,11 @@ ffmpeg -hide_banner -hwaccels
 # Instead we assemble a relocatable bundle:
 #   <bundle>/ffmpeg  <bundle>/ffprobe  <bundle>/ffplay     (the binaries)
 #   <bundle>/lib/<soname> ...                              (EVERY non-glibc shared dep)
-# The binaries ALREADY carry an $ORIGIN DT_RPATH baked at LINK time by our from-source gcc
-# (scripts/deps/gcc.sh installs a specs file; see scripts/deps/common.sh:ORIGIN_SPECS). OLD
-# DT_RPATH on the executable resolves <bundle>/lib via $ORIGIN/lib AND propagates to every
-# transitively-loaded lib there, so the tree runs directly from ./out on the host and from
-# any directory it is later moved/extracted to -- with NO patchelf rewriting the binaries.
+# The binaries ALREADY carry an $ORIGIN DT_RPATH baked at LINK time via LD_RUN_PATH (exported
+# above) + our --disable-new-dtags ld (scripts/deps/binutils.sh) -- no gcc specs file, no
+# patchelf. OLD DT_RPATH on the executable resolves <bundle>/lib via $ORIGIN/lib AND propagates
+# to every transitively-loaded lib there, so the tree runs directly from ./out on the host and
+# from any directory it is later moved/extracted to -- with NO patchelf rewriting the binaries.
 #
 # Only glibc core + the dynamic loader are EXCLUDED (provided by the host). Everything else
 # (libstdc++, libgcc_s, libcrypt, and all codec/feature libs) is bundled.
@@ -372,8 +378,8 @@ EOF_LDD
     else
       echo "FATAL: ${bin} carries no \$ORIGIN DT_RPATH (old dtags) -- the relocatable bundle" >&2
       echo "       would break on the host. DT_RUNPATH is insufficient (it does not propagate to" >&2
-      echo "       transitive deps like libstdc++->libgcc_s). Expected gcc's specs to bake DT_RPATH" >&2
-      echo "       (scripts/deps/gcc.sh, common.sh:ORIGIN_SPECS). NOT patching post-hoc; failing." >&2
+      echo "       transitive deps like libstdc++->libgcc_s). Expected LD_RUN_PATH + our" >&2
+      echo "       --disable-new-dtags ld to bake it. NOT patching post-hoc; failing instead." >&2
       exit 1
     fi
   done

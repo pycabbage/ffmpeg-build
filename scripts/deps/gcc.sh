@@ -6,13 +6,13 @@
 #     /usr/local/bin first on PATH, every later layer (build tools + all media libs) and the
 #     FFmpeg compile itself are driven by THIS gcc — not the seed and not anything from apt.
 #
-#  2. After install it writes the $ORIGIN RPATH `specs` file (common.sh:ORIGIN_SPECS) into
-#     gcc's private directory. gcc auto-reads a file named `specs` there, so from now on EVERY
-#     non-static link gcc performs bakes a relocatable OLD-style DT_RPATH ($ORIGIN:$ORIGIN/../lib:
-#     $ORIGIN/lib) into the output — executables AND shared libraries. DT_RPATH (not DT_RUNPATH)
-#     is required: it propagates to transitively-loaded libs (libstdc++ -> libgcc_s). THIS is what
-#     makes the shipped FFmpeg bundle relocatable WITHOUT patchelf. Injection happens inside the
-#     gcc driver, after make/shell variable expansion, so the literal `$ORIGIN` is never mangled.
+#  2. Relocatability (the patchelf replacement) is NOT done with a gcc `specs` file: a default
+#     specs file silently breaks gcc's built-in --eh-frame-hdr (PT_GNU_EH_FRAME -> C++ exception
+#     unwinding) and libgcc_s auto-linking. Instead common.sh exports LD_RUN_PATH=$ORIGIN:... ,
+#     which our --disable-new-dtags ld (scripts/deps/binutils.sh) bakes as a relocatable OLD-style
+#     DT_RPATH into every executable + shared library. DT_RPATH (not DT_RUNPATH) propagates to
+#     transitively-loaded libs (libstdc++ -> libgcc_s), making the bundle relocatable WITHOUT
+#     patchelf. This script only VERIFIES it (below).
 #
 # Single-stage (--disable-bootstrap): the seed compiler is trusted here and a 3-stage bootstrap
 # would roughly triple build time for no benefit to a build-only toolchain.
@@ -38,28 +38,24 @@ make -j"${JOBS}"
 make install
 ldconfig
 
-# --- install the relocatable-RPATH specs so OUR gcc bakes $ORIGIN into every link ----------
-SPECDIR="$(dirname "$("${PREFIX}/bin/gcc" -print-libgcc-file-name)")"
-printf '%s\n' "${ORIGIN_SPECS}" > "${SPECDIR}/specs"
-echo "installed RPATH specs -> ${SPECDIR}/specs"
-
 # --- prove the toolchain is correct: $ORIGIN DT_RPATH baked AND C++ exceptions actually work --
-# Two invariants the specs must preserve (both have bitten this build):
+# Relocatability is injected via LD_RUN_PATH (common.sh) baked by our --disable-new-dtags ld as
+# DT_RPATH — NOT a gcc `specs` file (a default specs file silently breaks gcc's built-in
+# --eh-frame-hdr and libgcc_s auto-linking). Two invariants to verify (both have bitten this
+# build):
 #   1. every non-static link gets an $ORIGIN DT_RPATH (old dtags) — patchelf-free relocation.
-#   2. C++ exception unwinding still works. Installing a default specs file makes gcc STOP
-#      emitting its built-in --eh-frame-hdr, dropping PT_GNU_EH_FRAME so `catch` is bypassed
-#      (std::terminate/abort). common.sh:ORIGIN_SPECS re-adds --eh-frame-hdr; we verify by
-#      actually COMPILING + RUNNING a throw/catch (a C-only check would not catch this).
+#   2. C++ exception unwinding works end-to-end. A C-only check misses it, so we COMPILE + RUN
+#      a throw/catch and require a PT_GNU_EH_FRAME segment.
 hash -r
 T="$(mktemp -d)"
 echo 'int main(void){return 0;}' > "${T}/t.c"
 "${PREFIX}/bin/gcc" -o "${T}/t" "${T}/t.c"
 readelf -d "${T}/t" | grep '(RPATH)' | grep -q '\$ORIGIN' \
-  || die "gcc specs did not bake an \$ORIGIN DT_RPATH (old dtags) — patchelf-free relocation would break"
+  || die "no \$ORIGIN DT_RPATH baked (expected via LD_RUN_PATH + --disable-new-dtags ld) — relocation would break"
 printf 'int main(){try{throw 1;}catch(...){return 0;}return 3;}\n' > "${T}/e.cpp"
 "${PREFIX}/bin/g++" -O2 -o "${T}/e" "${T}/e.cpp"
 readelf -l "${T}/e" | grep -q 'GNU_EH_FRAME' \
-  || die "g++ output lacks PT_GNU_EH_FRAME — C++ exception unwinding broken (specs dropped --eh-frame-hdr)"
+  || die "g++ output lacks PT_GNU_EH_FRAME — C++ exception unwinding is broken"
 "${T}/e" \
   || die "g++ C++ exception test aborted (catch bypassed) — broken C++ exception handling at runtime"
 readelf -d "${T}/e" | grep '(RPATH)' | grep -q '\$ORIGIN' \

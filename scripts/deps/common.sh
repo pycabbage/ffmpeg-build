@@ -15,29 +15,28 @@
 # relocatable. That post-hoc binary rewriting is the "侵害" (invasive tampering) the
 # 001-full-build task removes. We replace it with a relocatable RPATH baked at LINK time.
 #
-# Threading `-Wl,-rpath,$ORIGIN` through every project's LDFLAGS is unreliable: a literal
-# `$ORIGIN` is mangled by make's `$(...)` expansion (`$O` -> empty, leaving `RIGIN`) and by
-# the recipe shell. The robust, build-system-agnostic fix is to inject the rpath INSIDE the
-# gcc driver, which runs AFTER make/shell expansion. Because we build gcc ourselves,
-# scripts/deps/gcc.sh installs a `specs` file (see ORIGIN_SPECS below) into gcc's private
-# directory so that EVERY non-static link gcc performs — for both executables and shared
-# libraries — automatically gets:
-#       DT_RPATH = $ORIGIN:$ORIGIN/../lib:$ORIGIN/lib   (OLD dtags, --disable-new-dtags)
-# Verified: this lands the literal `$ORIGIN` even when the link goes through a Makefile.
+# Mechanism: the LD_RUN_PATH environment variable. `ld` reads it and, when a link specifies no
+# explicit -rpath, stores its value verbatim as the binary's RPATH. We export it (below) as the
+# literal string `$ORIGIN:$ORIGIN/../lib:$ORIGIN/lib`, so EVERY executable and shared library
+# linked under this environment becomes relocatable with NO post-processing and NO per-recipe
+# flags. As an env var it is immune to the make `$(...)`/shell `$O`->'' expansion traps that
+# make threading `-Wl,-rpath,$ORIGIN` through LDFLAGS unreliable.
 #
-# OLD dtags (DT_RPATH) — not DT_RUNPATH — is deliberate: DT_RPATH on the executable PROPAGATES
-# to transitively-loaded libraries, whereas DT_RUNPATH does not. That propagation is what
-# covers libstdc++.so.6 / libgcc_s.so.1, which gcc builds for itself BEFORE this specs file
-# exists and which therefore carry no rpath of their own. (Both behaviours verified.)
+# We deliberately do NOT use a gcc `specs` file for this: installing a default specs file makes
+# gcc stop emitting its built-in `--eh-frame-hdr` (dropping PT_GNU_EH_FRAME -> C++ exception
+# unwinding silently breaks) and disturbs libgcc_s auto-linking. LD_RUN_PATH leaves gcc's
+# built-in link behaviour completely intact. (Both failure modes were observed + verified.)
 #
-# Consequence for THIS file: individual dependency scripts do NOT set any rpath flags. They
-# build normally; our gcc makes their output relocatable for free. (The three rpath entries
-# cover every layout: a lib resolving sibling libs in the same dir = $ORIGIN; the installed
-# bin/->lib tree = $ORIGIN/../lib; the flat bundle `ffmpeg + lib/` = $ORIGIN/lib.)
+# OLD dtags (DT_RPATH), not DT_RUNPATH: scripts/deps/binutils.sh builds ld with
+# `--disable-new-dtags` so LD_RUN_PATH yields DT_RPATH. DT_RPATH on the executable PROPAGATES to
+# transitively-loaded libraries; DT_RUNPATH does not. That propagation covers libstdc++.so.6 /
+# libgcc_s.so.1 (built during gcc, carrying no rpath of their own). The three entries cover
+# every layout: sibling libs = $ORIGIN; the installed bin/->lib tree = $ORIGIN/../lib; the flat
+# bundle `ffmpeg + lib/` = $ORIGIN/lib.
 #
-# build-ffmpeg.sh re-verifies with `readelf -d` that each shipped ffmpeg/ffprobe/ffplay binary
-# carries an $ORIGIN DT_RPATH and FAILS LOUDLY otherwise, so a binary that escapes the spec
-# surfaces as a build error fixed at the recipe level — never via patchelf.
+# Consequence: individual dependency scripts set NO rpath flags. build-ffmpeg.sh re-verifies
+# with `readelf -d` that each shipped ffmpeg/ffprobe/ffplay binary carries an $ORIGIN DT_RPATH
+# and FAILS LOUDLY otherwise — fixed at the recipe/toolchain level, never via patchelf.
 set -euxo pipefail
 
 # Install prefix for every source-built component. Listed first on all search paths so our
@@ -56,21 +55,11 @@ export LD_LIBRARY_PATH="${PREFIX}/lib:${PREFIX}/lib64${LD_LIBRARY_PATH:+:${LD_LI
 export CPPFLAGS="-I${PREFIX}/include${CPPFLAGS:+ ${CPPFLAGS}}"
 export LDFLAGS="-L${PREFIX}/lib${LDFLAGS:+ ${LDFLAGS}}"
 
-# The gcc `specs` snippet that bakes the relocatable DT_RPATH into every link. gcc.sh writes
-# this verbatim into <gcc-private-dir>/specs so it is applied automatically (no -specs= flag,
-# no LDFLAGS threading). `+` appends to gcc's built-in `*link` spec. $ORIGIN is literal here
-# (gcc specs use % for substitution, not $), so it reaches the linker intact. --disable-new-dtags
-# forces OLD-style DT_RPATH (propagates to transitive deps; see the header note above).
-#
-# --eh-frame-hdr is MANDATORY here: the mere presence of a default `specs` file makes gcc STOP
-# emitting its built-in `--eh-frame-hdr`, which drops the PT_GNU_EH_FRAME segment and silently
-# breaks C++ exception unwinding (catch is bypassed -> std::terminate -> abort). We restore it
-# explicitly. (Verified: without it, `g++` C++ programs abort on any thrown+caught exception.)
-read -r -d '' ORIGIN_SPECS <<'SPECS' || true
-*link:
-+ %{!static:%{!static-pie: --eh-frame-hdr -rpath=$ORIGIN -rpath=$ORIGIN/../lib -rpath=$ORIGIN/lib --disable-new-dtags}}
-SPECS
-export ORIGIN_SPECS
+# THE relocatable-RPATH mechanism (see the header note). `ld` bakes this literal value as the
+# binary's RPATH when the link has no explicit -rpath of its own. Single-quoted so `$ORIGIN`
+# stays literal. With binutils built --disable-new-dtags this becomes DT_RPATH (old dtags),
+# which propagates to transitive deps. Build-system-agnostic and free of make/shell $ traps.
+export LD_RUN_PATH='$ORIGIN:$ORIGIN/../lib:$ORIGIN/lib'
 
 log()  { echo "==== $* ===="; }
 die()  { echo "ERROR: $*" >&2; exit 1; }

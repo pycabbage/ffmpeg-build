@@ -15,7 +15,7 @@ cd "${SRC}/build"
   --prefix="${PREFIX}" \
   --enable-shared --enable-ld=default --enable-gold \
   --enable-plugins --enable-64-bit-bfd \
-  --with-system-zlib --enable-new-dtags \
+  --with-system-zlib --disable-new-dtags \
   --disable-werror --disable-nls
 make -j"${JOBS}"
 make install
