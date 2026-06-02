@@ -361,15 +361,19 @@ EOF_LDD
   # the build if a binary lost its $ORIGIN rpath, so a regression surfaces loudly instead of
   # shipping a broken bundle -- and is fixed at the toolchain/recipe level, never by rewriting
   # the finished binary.
+  # Require OLD-style DT_RPATH specifically (readelf prints it as "(RPATH)"). DT_RUNPATH is NOT
+  # acceptable: it does not propagate to transitively-loaded libs (libstdc++ -> libgcc_s), so a
+  # bundle whose binaries only had RUNPATH would break on the host even though $ORIGIN is present.
   for bin in ffmpeg ffprobe ffplay; do
     [ -f "${BUNDLE}/${bin}" ] || continue
-    rpath_line="$(readelf -d "${BUNDLE}/${bin}" 2>/dev/null | grep -E 'RPATH|RUNPATH' || true)"
+    rpath_line="$(readelf -d "${BUNDLE}/${bin}" 2>/dev/null | grep '(RPATH)' || true)"
     if printf '%s' "${rpath_line}" | grep -q '\$ORIGIN'; then
       echo "rpath OK: ${bin} -> $(printf '%s' "${rpath_line}" | sed 's/^[[:space:]]*//')"
     else
-      echo "FATAL: ${bin} carries no \$ORIGIN RPATH/RUNPATH -- the relocatable bundle would" >&2
-      echo "       break on the host. Expected gcc's specs file to bake it (scripts/deps/gcc.sh," >&2
-      echo "       scripts/deps/common.sh:ORIGIN_SPECS). NOT patching post-hoc; failing instead." >&2
+      echo "FATAL: ${bin} carries no \$ORIGIN DT_RPATH (old dtags) -- the relocatable bundle" >&2
+      echo "       would break on the host. DT_RUNPATH is insufficient (it does not propagate to" >&2
+      echo "       transitive deps like libstdc++->libgcc_s). Expected gcc's specs to bake DT_RPATH" >&2
+      echo "       (scripts/deps/gcc.sh, common.sh:ORIGIN_SPECS). NOT patching post-hoc; failing." >&2
       exit 1
     fi
   done
@@ -380,7 +384,7 @@ EOF_LDD
   for lib in "${BUNDLE}"/lib/*.so*; do
     [ -e "${lib}" ] || continue
     _total=$((_total + 1))
-    if readelf -d "${lib}" 2>/dev/null | grep -E 'RPATH|RUNPATH' | grep -q '\$ORIGIN'; then
+    if readelf -d "${lib}" 2>/dev/null | grep '(RPATH)' | grep -q '\$ORIGIN'; then
       _withrp=$((_withrp + 1))
     fi
   done

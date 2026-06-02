@@ -49,7 +49,7 @@ set -euxo pipefail
 export PATH="${PREFIX}/bin:${PATH}"
 export PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${PREFIX}/lib/x86_64-linux-gnu/pkgconfig:${PREFIX}/share/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
 # Build-time loader visibility for the in-image libs (the SHIPPED artifact relies on the
-# baked $ORIGIN RUNPATH instead, not on this).
+# baked $ORIGIN DT_RPATH instead, not on this).
 export LD_LIBRARY_PATH="${PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 # Many autotools projects honour these; cmake/meson read the toolchain directly.
 export CPPFLAGS="-I${PREFIX}/include${CPPFLAGS:+ ${CPPFLAGS}}"
