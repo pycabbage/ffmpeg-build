@@ -83,7 +83,7 @@ fetch_git() {
 fetch_tar() {
   local url="$1" dest="$2" sha="${3:-}"
   local tmp; tmp="$(mktemp /tmp/src.XXXXXX.tar)"
-  curl -fSL --retry 5 --retry-delay 3 -o "${tmp}" "${url}"
+  curl -fSL --connect-timeout 30 --retry 5 --retry-delay 3 -o "${tmp}" "${url}"
   if [ -n "${sha}" ]; then
     echo "${sha}  ${tmp}" | sha256sum -c - || die "checksum mismatch for ${url}"
   fi

@@ -6,7 +6,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 VER="4.2.1"
 SRC="${SRCROOT}/mpfr"
 
-fetch_tar "https://www.mpfr.org/mpfr-${VER}/mpfr-${VER}.tar.xz" "${SRC}"
+# Fetched from the GNU mirror (more reliable from CI than www.mpfr.org).
+fetch_tar "https://ftp.gnu.org/gnu/mpfr/mpfr-${VER}.tar.xz" "${SRC}"
 cd "${SRC}"
 ./configure --prefix="${PREFIX}" --with-gmp="${PREFIX}" --enable-shared
 make -j"${JOBS}"
