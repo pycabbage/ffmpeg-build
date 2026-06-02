@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # libaom — AV1 codec reference implementation; FFmpeg --enable-libaom.
-# cmake build; googlesource tarball URL is auto-generated from the tag.
+# cmake build. Fetched via git tag: the googlesource `+archive` tarball has NO top-level dir,
+# which fetch_tar's --strip-components=1 would mangle (dropping CMakeLists.txt).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 
 VER="3.14.1"
 SRC="${SRCROOT}/aom"
 
-fetch_tar "https://aomedia.googlesource.com/aom/+archive/refs/tags/v${VER}.tar.gz" "${SRC}"
+fetch_git "https://aomedia.googlesource.com/aom" "v${VER}" "${SRC}"
 mkdir -p "${SRC}/build"
 cd "${SRC}/build"
 cmake .. \

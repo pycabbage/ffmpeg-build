@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # libwebp — Google WebP image codec; FFmpeg --enable-libwebp.
 # cmake build; provides libwebp, libwebpmux, libwebpdemux, libsharpyuv.
-# Source tarball from chromium.googlesource.com auto-generated archive endpoint.
+# Fetched via git tag: the chromium.googlesource `+archive` tarball has NO top-level dir, which
+# fetch_tar's --strip-components=1 would mangle (dropping CMakeLists.txt).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 
 VER="1.6.0"
 SRC="${SRCROOT}/libwebp"
 
-fetch_tar "https://chromium.googlesource.com/webm/libwebp/+archive/refs/tags/v${VER}.tar.gz" "${SRC}"
+fetch_git "https://chromium.googlesource.com/webm/libwebp" "v${VER}" "${SRC}"
 mkdir -p "${SRC}/build"
 cd "${SRC}/build"
 cmake .. \
