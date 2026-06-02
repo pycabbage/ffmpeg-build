@@ -37,7 +37,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/usr/local/bin:${PATH}"
 # Our from-source pkgconf resolves /usr/local first.
 ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/share/pkgconfig"
-ENV LD_LIBRARY_PATH="/usr/local/lib"
+# lib64 included: our from-source gcc installs libstdc++/libgcc_s under /usr/local/lib64.
+ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64"
 ENV SRCROOT="/tmp/src"
 
 # --- bootstrap SEED only: OS-floor build tools needed to compile our own toolchain ----------
@@ -65,8 +66,9 @@ RUN set -eux; \
 
 # Source-built libs land in /usr/local; make sure the loader sees them across RUN layers.
 RUN set -eux; \
-    echo "/usr/local/lib" > /etc/ld.so.conf.d/ffmpeg-local.conf; \
-    echo "/usr/local/lib/x86_64-linux-gnu" >> /etc/ld.so.conf.d/ffmpeg-local.conf; \
+    { echo "/usr/local/lib"; \
+      echo "/usr/local/lib64"; \
+      echo "/usr/local/lib/x86_64-linux-gnu"; } > /etc/ld.so.conf.d/ffmpeg-local.conf; \
     ldconfig
 
 # --- dependency scripts copied BEFORE the dependency RUNs (so editing build-ffmpeg.sh later

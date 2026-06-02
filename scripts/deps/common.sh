@@ -50,7 +50,8 @@ export PATH="${PREFIX}/bin:${PATH}"
 export PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${PREFIX}/lib/x86_64-linux-gnu/pkgconfig:${PREFIX}/share/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
 # Build-time loader visibility for the in-image libs (the SHIPPED artifact relies on the
 # baked $ORIGIN DT_RPATH instead, not on this).
-export LD_LIBRARY_PATH="${PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+# lib64 too: our from-source gcc installs libstdc++.so/libgcc_s.so under ${PREFIX}/lib64.
+export LD_LIBRARY_PATH="${PREFIX}/lib:${PREFIX}/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 # Many autotools projects honour these; cmake/meson read the toolchain directly.
 export CPPFLAGS="-I${PREFIX}/include${CPPFLAGS:+ ${CPPFLAGS}}"
 export LDFLAGS="-L${PREFIX}/lib${LDFLAGS:+ ${LDFLAGS}}"
@@ -60,9 +61,14 @@ export LDFLAGS="-L${PREFIX}/lib${LDFLAGS:+ ${LDFLAGS}}"
 # no LDFLAGS threading). `+` appends to gcc's built-in `*link` spec. $ORIGIN is literal here
 # (gcc specs use % for substitution, not $), so it reaches the linker intact. --disable-new-dtags
 # forces OLD-style DT_RPATH (propagates to transitive deps; see the header note above).
+#
+# --eh-frame-hdr is MANDATORY here: the mere presence of a default `specs` file makes gcc STOP
+# emitting its built-in `--eh-frame-hdr`, which drops the PT_GNU_EH_FRAME segment and silently
+# breaks C++ exception unwinding (catch is bypassed -> std::terminate -> abort). We restore it
+# explicitly. (Verified: without it, `g++` C++ programs abort on any thrown+caught exception.)
 read -r -d '' ORIGIN_SPECS <<'SPECS' || true
 *link:
-+ %{!static:%{!static-pie: -rpath=$ORIGIN -rpath=$ORIGIN/../lib -rpath=$ORIGIN/lib --disable-new-dtags}}
++ %{!static:%{!static-pie: --eh-frame-hdr -rpath=$ORIGIN -rpath=$ORIGIN/../lib -rpath=$ORIGIN/lib --disable-new-dtags}}
 SPECS
 export ORIGIN_SPECS
 

@@ -43,16 +43,28 @@ SPECDIR="$(dirname "$("${PREFIX}/bin/gcc" -print-libgcc-file-name)")"
 printf '%s\n' "${ORIGIN_SPECS}" > "${SPECDIR}/specs"
 echo "installed RPATH specs -> ${SPECDIR}/specs"
 
-# --- prove the spec is active: a freshly linked binary must carry an $ORIGIN DT_RPATH ---------
-# Require OLD-style DT_RPATH (readelf prints "(RPATH)"); DT_RUNPATH would NOT propagate to
-# transitive deps and so must not satisfy this check.
+# --- prove the toolchain is correct: $ORIGIN DT_RPATH baked AND C++ exceptions actually work --
+# Two invariants the specs must preserve (both have bitten this build):
+#   1. every non-static link gets an $ORIGIN DT_RPATH (old dtags) — patchelf-free relocation.
+#   2. C++ exception unwinding still works. Installing a default specs file makes gcc STOP
+#      emitting its built-in --eh-frame-hdr, dropping PT_GNU_EH_FRAME so `catch` is bypassed
+#      (std::terminate/abort). common.sh:ORIGIN_SPECS re-adds --eh-frame-hdr; we verify by
+#      actually COMPILING + RUNNING a throw/catch (a C-only check would not catch this).
 hash -r
 T="$(mktemp -d)"
 echo 'int main(void){return 0;}' > "${T}/t.c"
 "${PREFIX}/bin/gcc" -o "${T}/t" "${T}/t.c"
 readelf -d "${T}/t" | grep '(RPATH)' | grep -q '\$ORIGIN' \
   || die "gcc specs did not bake an \$ORIGIN DT_RPATH (old dtags) — patchelf-free relocation would break"
-echo "verified: $("${PREFIX}/bin/gcc" --version | head -1) bakes \$ORIGIN DT_RPATH by default"
+printf 'int main(){try{throw 1;}catch(...){return 0;}return 3;}\n' > "${T}/e.cpp"
+"${PREFIX}/bin/g++" -O2 -o "${T}/e" "${T}/e.cpp"
+readelf -l "${T}/e" | grep -q 'GNU_EH_FRAME' \
+  || die "g++ output lacks PT_GNU_EH_FRAME — C++ exception unwinding broken (specs dropped --eh-frame-hdr)"
+"${T}/e" \
+  || die "g++ C++ exception test aborted (catch bypassed) — broken C++ exception handling at runtime"
+readelf -d "${T}/e" | grep '(RPATH)' | grep -q '\$ORIGIN' \
+  || die "g++ output lacks an \$ORIGIN DT_RPATH"
+echo "verified: $("${PREFIX}/bin/gcc" --version | head -1) bakes \$ORIGIN DT_RPATH and links+runs C++ exceptions"
 rm -rf "${T}"
 
 cleanup "${SRC}"
