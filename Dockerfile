@@ -71,10 +71,22 @@ RUN set -eux; \
       echo "/usr/local/lib/x86_64-linux-gnu"; } > /etc/ld.so.conf.d/ffmpeg-local.conf; \
     ldconfig
 
-# --- dependency scripts copied BEFORE the dependency RUNs (so editing build-ffmpeg.sh later
-#     does NOT invalidate these cached layers). common.sh is the shared contract every script
-#     sources; editing it correctly invalidates all dependency layers below. -----------------
-COPY scripts/deps/ /opt/scripts/deps/
+# --- dependency scripts. Split into TWO COPY layers for cache granularity: the toolchain +
+#     build-tool scripts (phases 0-2) are copied FIRST, so editing a media-library recipe (the
+#     common case during phase-3 iteration) does NOT bust the expensive cached toolchain layers
+#     below — only the phase-3 layers rebuild. common.sh is the shared contract; editing it
+#     (correctly) invalidates everything. -----------------------------------------------------
+COPY scripts/deps/common.sh \
+     scripts/deps/pkgconf.sh \
+     scripts/deps/zlib.sh scripts/deps/zstd.sh scripts/deps/bzip2.sh scripts/deps/xz.sh \
+     scripts/deps/gmp.sh scripts/deps/mpfr.sh scripts/deps/mpc.sh scripts/deps/isl.sh \
+     scripts/deps/binutils.sh scripts/deps/gcc.sh \
+     scripts/deps/m4.sh scripts/deps/autoconf.sh scripts/deps/automake.sh scripts/deps/libtool.sh \
+     scripts/deps/nasm.sh scripts/deps/yasm.sh \
+     scripts/deps/libffi.sh scripts/deps/openssl.sh scripts/deps/ncurses.sh scripts/deps/readline.sh \
+     scripts/deps/python.sh \
+     scripts/deps/ninja.sh scripts/deps/cmake.sh scripts/deps/meson.sh \
+     /opt/scripts/deps/
 
 # Each RUN builds one dependency PHASE in order. Grouping (vs one-RUN-per-lib) keeps the layer
 # count sane for ~130 packages while preserving coarse caching + clear failure isolation.
@@ -95,6 +107,11 @@ RUN set -e; for s in m4 autoconf automake libtool nasm yasm; do bash /opt/script
 RUN set -e; for s in libffi openssl ncurses readline; do bash /opt/scripts/deps/$s.sh; done
 RUN set -e; for s in python; do bash /opt/scripts/deps/$s.sh; done
 RUN set -e; for s in ninja cmake meson; do bash /opt/scripts/deps/$s.sh; done
+
+# media-library scripts copied HERE (after the toolchain RUNs) so editing a media recipe does
+# not invalidate the cached phases 0-2 above. This re-copies the whole deps/ dir (incl. the
+# already-copied toolchain scripts; identical content keeps their layers cached).
+COPY scripts/deps/ /opt/scripts/deps/
 
 # ---- phase 3: media libraries (built by OUR gcc; all get $ORIGIN rpath) --------------------
 # base codec/filter deps

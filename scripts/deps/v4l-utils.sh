@@ -11,7 +11,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 VER="v4l-utils-1.32.0"
 SRC="${SRCROOT}/v4l-utils"
 
-fetch_tar "https://www.linuxtv.org/downloads/v4l-utils/v4l-utils-1.32.0.tar.xz" "${SRC}"
+# linuxtv.org downloads are flaky (503); fetch from the gjasny GitHub mirror archive instead.
+fetch_tar "https://github.com/gjasny/v4l-utils/archive/refs/tags/${VER}.tar.gz" "${SRC}"
 meson setup "${SRC}/build" "${SRC}" \
   --prefix="${PREFIX}" \
   --buildtype=release \
