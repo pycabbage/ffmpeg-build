@@ -117,21 +117,23 @@ FULL-BUILD では **全依存をソースビルド**する。正準な依存順�
   (`x264` `x265` `xvid` `libvpx` `aom` `dav1d` `svtav1` `openh264` `libtheora` `libwebp` `openjpeg`、
   および apt 非提供の `vvenc` `xeve` `xevd` `xavs2` `davs2` `uavs3d` `rav1e`)、オーディオ
   (`lame` `opus` `libvorbis` `fdk-aac` `twolame` `libgsm` `speex`/`speexdsp` `opencore-amr`
-  `vo-amrwbenc` `shine` `codec2` `libmysofa` `flac`)、字幕/テキスト/フィルタ
+  `vo-amrwbenc` `shine` `codec2` `libmysofa`)、字幕/テキスト/フィルタ
   (`freetype` `fribidi` `fontconfig` `harfbuzz` `libass` `aribb24` `libaribcaption` `zimg`
   `rubberband` `soxr` `vidstab` `frei0r` `ladspa` `libbs2b` `flite` `leptonica` `tesseract`
   `libvmaf`)、TLS/ネット (`nettle` `libtasn1` `libunistring` `p11-kit` `gnutls` → `librtmp`
   `libsrt` `libssh` `libzmq` `librist`)、demux/source (`libxml2` `snappy` `libgme` `libmodplug`
   `libopenmpt` `chromaprint` `libcaca` `libusb`/`libraw1394`/`libdc1394` `libcdio`/`libcdio-paranoia`
   `libbluray`)、デバイス/HW (`util-macros`→`xorgproto`→`libxau`/`libxdmcp`/`xcb-proto`/
-  `libpthread-stubs`→`libxcb`、`alsa-lib` `sndio` `openal-soft` `sdl2`、`libsndfile`/`pulse`/`jack`、
+  `libpthread-stubs`→`libxcb`、`alsa-lib` `sndio` `openal-soft` `sdl2`、
   `libdrm` `libva` `libvdpau` `v4l-utils`、`vulkan-headers`/`vulkan-loader`、
   `spirv-headers`→`spirv-tools`→`glslang`→`shaderc`、`libglvnd` `opencl-headers`/`ocl-icd` `libvpl`、
-  `nv-codec-headers` `amf`)、最後に `libplacebo`（vulkan-loader+shaderc+lcms2 が必要）と `samba`。
+  `nv-codec-headers` `amf`)、最後に `libplacebo`（vulkan-loader+shaderc+lcms2 が必要）。
 
-> **要 CI 検証 / 脆いレシピ:** フルビルドのエンドツーエンド検証は未実施（数時間かかる）。
-> `samba`(libsmbclient)・`pulse`(libpulse, +`libsndfile`+`flac`)・`jack`(libjack) はソースビルドが
-> 最も壊れやすい。CI で問題が出るなら当該 `deps/*.sh` と対応する `--enable-*` フラグを外すのが実用的。
+> **要 CI 検証:** フルビルドのエンドツーエンド検証は未実施（数時間かかる）。`.github/workflows/build.yml`
+> が PR の create/sync でビルダーイメージを `docker build`→ghcr へ push（gha キャッシュ付き）し、
+> `docker run` で FFmpeg をビルドして成果物を artifact 化する。未検証レシピは CI で反復修正する。
+> なお `libsmbclient`(samba) / `libpulse`(pulseaudio) / `libjack`(jack2) はソースビルドが特に脆いため
+> **意図的に外した**（下の「意図的に省略したライブラリ」参照。native AAC のように機能自体は影響軽微）。
 
 ## 有効化される機能 / 外部ライブラリ
 
@@ -150,12 +152,12 @@ libharfbuzz, libaribb24, libaribcaption, libzimg, librubberband, libsoxr, libvid
 libvmaf, frei0r, ladspa, libbs2b, libflite, libplacebo, libtesseract
 
 **Protocols / network:** librtmp, libsrt (gnutls flavor), libssh, libzmq, librist,
-libsmbclient, gnutls, network
+gnutls, network
 
 **Demux / containers / sources:** libbluray, libopenmpt, libgme, libmodplug, chromaprint,
 libcaca, libdc1394, libcdio, libsnappy, libxml2, gmp
 
-**Devices / capture / output:** openal, libpulse, libjack, sndio, sdl2, libxcb (+shm
+**Devices / capture / output:** openal, sndio, sdl2, libxcb (+shm
 +xfixes +shape), libv4l2
 
 **Hardware acceleration:** vaapi, vdpau, vulkan (+libshaderc for libplacebo compute),
@@ -219,9 +221,9 @@ libpostproc は自動ビルドのため `--enable-postproc` は **存在しな�
 --enable-libaribb24 --enable-libaribcaption --enable-libzimg --enable-librubberband
 --enable-libsoxr --enable-libvidstab --enable-libvmaf --enable-frei0r --enable-ladspa
 --enable-libbs2b --enable-libflite --enable-libplacebo --enable-libtesseract
---enable-librtmp --enable-libsrt --enable-libssh --enable-libzmq --enable-librist --enable-libsmbclient
+--enable-librtmp --enable-libsrt --enable-libssh --enable-libzmq --enable-librist
 --enable-libbluray --enable-libopenmpt --enable-libgme --enable-libmodplug --enable-chromaprint
---enable-libcaca --enable-libdc1394 --enable-libcdio --enable-openal --enable-libpulse --enable-libjack
+--enable-libcaca --enable-libdc1394 --enable-libcdio --enable-openal
 --enable-sndio --enable-sdl2 --enable-libxcb --enable-libxcb-shm --enable-libxcb-xfixes --enable-libxcb-shape
 --enable-libv4l2 --enable-vaapi --enable-vdpau --enable-vulkan --enable-libshaderc --enable-opencl --enable-opengl
 --enable-amf --enable-nvenc --enable-nvdec --enable-cuvid --enable-ffnvcodec --enable-cuda-llvm
@@ -261,6 +263,9 @@ maximal なフラグ wishlist にあったが、このビルドに **ソース�
 | `--enable-openssl` | 意図的に drop。TLS バックエンドは GnuTLS に一本化。 |
 | `--enable-libuavs3d` | uavs3d v1.1 が FFmpeg 8.1.1 の要求 API より古く compile error。24.04 に新版 provider なし。 |
 | `--enable-liblensfun` | Ubuntu 24.04 の lensfun 0.3.4 に lf_db_create() が無く configure が link 失敗。 |
+| `--enable-libsmbclient` | Samba のソースビルドが非常に重く脆い（独自 waf + python + 大きな依存ツリー）ため、ビルド信頼性を優先して FULL-BUILD では意図的に外した。必要なら `scripts/deps/samba.sh` 相当を追加し再有効化可能。 |
+| `--enable-libpulse` | PulseAudio のソースビルドが重く（hard dep の libsndfile→FLAC を含む）脆いため意図的に外した。必要なら `pulse`/`libsndfile`/`flac` のレシピを追加し再有効化可能。 |
+| `--enable-libjack` | jack2 の waf ビルドが脆いため意図的に外した。必要なら `scripts/deps/jack.sh` 相当を追加し再有効化可能。 |
 
 ## ライセンス注意（再配布不可）
 

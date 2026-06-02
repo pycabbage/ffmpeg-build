@@ -34,8 +34,8 @@ LIBS=(
   # video codecs
   x264 x265 xvid libvpx aom dav1d svtav1 openh264 libtheora libwebp openjpeg
   vvenc xeve xevd xavs2 davs2 uavs3d rav1e
-  # audio codecs (+ flac for the pulse stack)
-  lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa flac
+  # audio codecs
+  lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa
   # subtitles / text / fonts
   freetype fribidi fontconfig harfbuzz libass
   # filters
@@ -53,7 +53,6 @@ LIBS=(
   util-macros xorgproto libxau libxdmcp xcb-proto libpthread-stubs libxcb
   # audio/video devices
   alsa-lib sndio openal-soft sdl2
-  libsndfile pulse jack
   # hardware acceleration
   libdrm libva libvdpau v4l-utils
   vulkan-headers vulkan-loader
@@ -61,7 +60,6 @@ LIBS=(
   libglvnd opencl-headers ocl-icd libvpl
   nv-codec-headers amf
   libplacebo                # needs vulkan-loader + shaderc + lcms2
-  samba                     # heaviest/most brittle; drop if it blocks the build
 )
 
 for lib in "${LIBS[@]}"; do

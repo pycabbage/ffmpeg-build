@@ -99,8 +99,8 @@ RUN set -e; for s in libogg libpng libjpeg-turbo expat gperf fftw lcms2; do bash
 RUN set -e; for s in x264 x265 xvid libvpx aom dav1d svtav1 openh264 libtheora libwebp openjpeg; do bash /opt/scripts/deps/$s.sh; done
 # video encoders/decoders (already source-built; no apt equivalent)
 RUN set -e; for s in vvenc xeve xevd xavs2 davs2 uavs3d rav1e; do bash /opt/scripts/deps/$s.sh; done
-# audio codecs (+ flac for the pulse stack)
-RUN set -e; for s in lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa flac; do bash /opt/scripts/deps/$s.sh; done
+# audio codecs
+RUN set -e; for s in lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa; do bash /opt/scripts/deps/$s.sh; done
 # subtitles / text / fonts
 RUN set -e; for s in freetype fribidi fontconfig harfbuzz libass; do bash /opt/scripts/deps/$s.sh; done
 # filters
@@ -120,8 +120,6 @@ RUN set -e; for s in util-macros xorgproto libxau libxdmcp xcb-proto libpthread-
 # audio/video devices
 RUN set -e; for s in alsa-lib; do bash /opt/scripts/deps/$s.sh; done
 RUN set -e; for s in sndio openal-soft sdl2; do bash /opt/scripts/deps/$s.sh; done
-# pulse/jack stack (HEAVY/brittle — see scripts/deps/{pulse,jack}.sh notes)
-RUN set -e; for s in libsndfile pulse jack; do bash /opt/scripts/deps/$s.sh; done
 # hardware acceleration: drm / vaapi / vdpau / v4l
 RUN set -e; for s in libdrm libva libvdpau v4l-utils; do bash /opt/scripts/deps/$s.sh; done
 # vulkan (headers + from-source loader)
@@ -134,8 +132,6 @@ RUN set -e; for s in libglvnd opencl-headers ocl-icd libvpl; do bash /opt/script
 RUN set -e; for s in nv-codec-headers amf; do bash /opt/scripts/deps/$s.sh; done
 # libplacebo LAST: needs vulkan-loader + shaderc + lcms2 above
 RUN set -e; for s in libplacebo; do bash /opt/scripts/deps/$s.sh; done
-# smbclient via Samba (HEAVIEST/most brittle — see scripts/deps/samba.sh; drop if it blocks CI)
-RUN set -e; for s in samba; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1

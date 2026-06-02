@@ -1,0 +1,92 @@
+name: build
+
+# PR create / sync triggered (opened, synchronize, reopened).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# packages: write lets GITHUB_TOKEN push the builder image to ghcr.io.
+# NOTE: for PRs from a FORK, GITHUB_TOKEN is downgraded to read-only and the push step will
+# fail; this workflow assumes same-repo branches (e.g. claude/*).
+permissions:
+  contents: read
+  packages: write
+
+# One in-flight run per PR; cancel superseded pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # The full from-source build (toolchain + ~100 libs) is long. cache-to gha,mode=max makes
+    # every layer reusable, so only the COLD first run is slow -- and that cold run can approach
+    # the 6h hosted-runner ceiling. 360 is the maximum allowed job timeout.
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract builder-image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=pr
+            type=sha
+
+      - name: Build & push the builder image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Compile FFmpeg inside the builder image
+        # The image's ENTRYPOINT (scripts/build-ffmpeg.sh) downloads + builds + verifies FFmpeg
+        # at run time and writes the relocatable bundle to the mounted /output. We run the exact
+        # image just pushed, addressed by its content digest.
+        run: |
+          mkdir -p "${{ github.workspace }}/out"
+          docker run --rm \
+            -v "${{ github.workspace }}/out:/output" \
+            "ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}"
+          echo "---- contents of out/ ----"
+          ls -la "${{ github.workspace }}/out"
+
+      - name: Upload FFmpeg bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-pr${{ github.event.pull_request.number }}-linux-x86_64
+          path: |
+            out/ffmpeg
+            out/ffprobe
+            out/ffplay
+            out/lib/**
+            out/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14

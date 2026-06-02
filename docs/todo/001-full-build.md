@@ -42,10 +42,18 @@ status: implemented
 - `common.sh` 契約の実ビルド（`pkgconf` + `zlib`）が成功（fetch/build/`verify_pc`/cleanup）。
 - 全 139 スクリプトの `bash -n` 構文チェック通過。ツールチェイン全 URL + メディア lib 約90 URL が解決可能。
 
-### 残作業（CI 推奨）
+### CI（GitHub Actions）
 
-- **フルビルドのエンドツーエンド検証は未実施**（4コアで数時間かかり対話セッション内では完了不能）。
-  GitHub Actions 等の CI で `docker build` → `docker run` を実行し、未検証のレシピを反復修正する想定。
-- **重い/脆いレシピ 3 つ**（`samba`=libsmbclient, `pulse`=libpulse(+`libsndfile`+`flac`), `jack`=libjack）は
-  ソースビルドが最も壊れやすい。CI で問題が出るなら、当該 `scripts/deps/*.sh` と対応する
-  `build-ffmpeg.sh` の `--enable-libsmbclient`/`--enable-libpulse`/`--enable-libjack` を外すのが実用的。
+- `.github/workflows/build.yml` を追加。**PR の create/sync (`opened`/`synchronize`/`reopened`)** で起動し、
+  `docker/build-push-action`（`cache-from: type=gha` / `cache-to: type=gha,mode=max`）でビルダーイメージを
+  ビルドして ghcr へ push → `docker run` で FFmpeg をビルド → `actions/upload-artifact` で成果物を上げる。
+- 注: フルビルドは数時間かかるため、初回の cold run は GitHub-hosted runner の 6 時間ジョブ上限に
+  近づく / 超える可能性がある。`cache-to: gha,mode=max` で 2 回目以降は大幅短縮される。
+
+### 残作業
+
+- **フルビルドのエンドツーエンド検証は未実施**（数時間かかるため上記 CI に委ねる）。未検証のレシピは
+  CI で反復修正する想定。
+- **特に脆い 3 つ**（`libsmbclient`=Samba, `libpulse`=PulseAudio(+libsndfile+FLAC), `libjack`=jack2）は
+  ソースビルドが壊れやすいため、ビルド信頼性を優先して **意図的に drop 済み**（`CLAUDE.md` の
+  「意図的に省略したライブラリ」参照）。必要になれば該当レシピと `--enable-*` フラグを再追加して有効化できる。

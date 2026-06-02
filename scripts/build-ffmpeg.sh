@@ -148,7 +148,6 @@ ENABLE_FLAGS=(
   --enable-libssh
   --enable-libzmq
   --enable-librist
-  --enable-libsmbclient
   --enable-libbluray
   --enable-libopenmpt
   --enable-libgme
@@ -158,8 +157,6 @@ ENABLE_FLAGS=(
   --enable-libdc1394
   --enable-libcdio
   --enable-openal
-  --enable-libpulse
-  --enable-libjack
   --enable-sndio
   --enable-sdl2
   --enable-libxcb
