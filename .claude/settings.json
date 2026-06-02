@@ -8,6 +8,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
+  "language": "japanese",
   "model": "opus[1m]",
   "effortLevel": "xhigh",
   "alwaysThinkingEnabled": true,
