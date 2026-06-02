@@ -119,7 +119,9 @@ RUN set -e; for s in libogg libpng libjpeg-turbo expat gperf fftw lcms2; do bash
 # video encoders/decoders (apt-replaced)
 RUN set -e; for s in x264 x265 xvid libvpx aom dav1d svtav1 openh264 libtheora libwebp openjpeg; do bash /opt/scripts/deps/$s.sh; done
 # video encoders/decoders (already source-built; no apt equivalent)
-RUN set -e; for s in vvenc xeve xevd xavs2 davs2 uavs3d rav1e; do bash /opt/scripts/deps/$s.sh; done
+# uavs3d omitted: --enable-libuavs3d is not passed (its v1.x API is too old for FFmpeg 8.1.1),
+# so building it only adds a fragile, unused gcc-14 compile. (Recipe kept in scripts/deps/.)
+RUN set -e; for s in vvenc xeve xevd xavs2 davs2 rav1e; do bash /opt/scripts/deps/$s.sh; done
 # audio codecs
 RUN set -e; for s in lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa; do bash /opt/scripts/deps/$s.sh; done
 # subtitles / text / fonts

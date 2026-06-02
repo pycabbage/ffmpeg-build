@@ -33,7 +33,8 @@ LIBS=(
   libogg libpng libjpeg-turbo expat gperf fftw lcms2
   # video codecs
   x264 x265 xvid libvpx aom dav1d svtav1 openh264 libtheora libwebp openjpeg
-  vvenc xeve xevd xavs2 davs2 uavs3d rav1e
+  vvenc xeve xevd xavs2 davs2 rav1e
+  # uavs3d omitted from the build: --enable-libuavs3d is not passed (API too old for FFmpeg 8.1.1)
   # audio codecs
   lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa
   # subtitles / text / fonts
