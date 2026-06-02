@@ -22,7 +22,6 @@ jobs:
     permissions:
       pull-requests: write
       issues: write
-      issues: read
       id-token: write
 
     steps:
