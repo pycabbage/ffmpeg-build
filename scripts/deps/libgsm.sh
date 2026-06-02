@@ -11,7 +11,9 @@ fetch_tar "https://www.quut.com/gsm/gsm-${VER}.tar.gz" "${SRC}"
 cd "${SRC}"
 
 # Build the static lib first (needed by the shared build too), then the shared lib.
-make -j"${JOBS}" CC="${PREFIX}/bin/gcc" CCFLAGS="-O2 -fPIC -DSASR -DWAV49" lib/libgsm.a
+# NOTE: gsm's Makefile keeps -c *inside* its CCFLAGS; overriding CCFLAGS drops it, so the .c.o
+# rule would LINK instead of compile ("Scrt1.o: undefined reference to `main'"). Keep -c here.
+make -j"${JOBS}" CC="${PREFIX}/bin/gcc" CCFLAGS="-c -O2 -fPIC -DSASR -DWAV49" lib/libgsm.a
 
 # Build shared library by linking all object files.
 mkdir -p lib
