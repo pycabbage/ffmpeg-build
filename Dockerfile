@@ -1,198 +1,150 @@
 # syntax=docker/dockerfile:1
 #
-# Maximal full-featured FFmpeg BUILD IMAGE.
+# Maximal full-featured FFmpeg BUILD IMAGE — FULL-BUILD (everything from source).
 #
-# This is a SINGLE-STAGE image: it is the *environment* for building FFmpeg, not a
-# compiled FFmpeg. `docker build` installs all build tooling, every apt -dev dependency
-# and every source-built dependency. FFmpeg itself is NEITHER fetched NOR compiled during
-# `docker build` -- the image contains no FFmpeg source and no FFmpeg binary.
+# This is a SINGLE-STAGE build *environment*. Per docs/todo/001-full-build.md it no longer
+# apt-installs any libraries: the entire toolchain (gcc/binutils + gmp/mpfr/mpc/isl), the build
+# tools (cmake/ninja/meson/nasm/yasm/autotools/python + their deps) AND every media library
+# FFmpeg links are compiled FROM SOURCE into /usr/local, in dependency order, one phase per RUN.
 #
-# FFmpeg is downloaded AND compiled at `docker run` time: the ENTRYPOINT runs
-# scripts/build-ffmpeg.sh, which downloads the FFmpeg source, then configures + builds +
-# installs + verifies FFmpeg inside the running container.
+# Only the OS floor + a throwaway BOOTSTRAP SEED stay from apt: glibc/coreutils/bash, plus a
+# seed gcc/make/perl used solely to compile our own gcc (a compiler cannot build itself from
+# nothing — even Linux From Scratch bootstraps off the host toolchain). The seed never ends up
+# in the shipped artifact.
 #
-# Build the build-image:   docker build -t ffmpeg-build .
-# Compile FFmpeg:           docker run --rm ffmpeg-build
-# Compile + extract bins:   docker run --rm -v "$PWD/out:/output" ffmpeg-build
+# patchelf is GONE. Relocatability is baked at LINK time: gcc.sh installs a `specs` file so our
+# from-source gcc gives every binary/library a relocatable $ORIGIN DT_RPATH. See
+# scripts/deps/common.sh (ORIGIN_SPECS) and scripts/deps/gcc.sh.
 #
-# The build is a GPL + version3 + nonfree variant (links fdk-aac). The resulting binary is
-# therefore NOT redistributable -- it is intended for personal / internal / server use.
+# FFmpeg itself is still NEITHER fetched NOR compiled during `docker build`; the ENTRYPOINT
+# (scripts/build-ffmpeg.sh) downloads + configures + builds + installs + verifies it at
+# `docker run` time, then exports a self-contained relocatable bundle to /output.
+#
+#   docker build -t ffmpeg-build .
+#   docker run --rm -v "$PWD/out:/output" ffmpeg-build
+#
+# The build is GPL + version3 + nonfree (links fdk-aac) -> the resulting binary is NOT
+# redistributable; intended for personal / internal / server use.
 
 ############################################################
-# build-image — toolchain + apt deps + source-built deps
+# build-image — bootstrap seed, then EVERYTHING from source
 ############################################################
 FROM ubuntu:24.04 AS build-image
 
 ENV DEBIAN_FRONTEND=noninteractive
+# /usr/local/bin FIRST so our from-source tools (pkg-config, gcc, nasm, cmake, python, …) shadow
+# the apt seed as soon as each is built.
 ENV PATH="/usr/local/bin:${PATH}"
-# pkg-config must find both apt multiarch .pc files and source-built /usr/local ones.
-# /usr/local is listed FIRST so source-built libs take precedence over apt ones.
-ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig"
-# Rust (rav1e) toolchain lives here so it is on PATH for the rav1e layer.
-ENV RUSTUP_HOME="/opt/rust/rustup" CARGO_HOME="/opt/rust/cargo"
-ENV PATH="/opt/rust/cargo/bin:${PATH}"
+# Our from-source pkgconf resolves /usr/local first.
+ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/share/pkgconfig"
+ENV LD_LIBRARY_PATH="/usr/local/lib"
+ENV SRCROOT="/tmp/src"
 
-# --- enable universe + multiverse, then install build tooling + all -dev deps ---
-# Only packages reported AVAILABLE on ubuntu:24.04 are installed here. Packages reported
-# missing (libkvazaar-dev, libilbc-dev, libvmaf-dev) are NOT installed; libvmaf is built
-# from source instead, and kvazaar/ilbc are intentionally omitted (no provider).
+# --- bootstrap SEED only: OS-floor build tools needed to compile our own toolchain ----------
+# NO libraries, NO cmake/meson/ninja/nasm/yasm/pkg-config, NO patchelf — all built from source.
+# build-essential = seed gcc/g++/make/libc6-dev (+ kernel UAPI headers via linux-libc-dev).
+# perl/gettext/texinfo/patch are OS-floor tools many `./configure`/`make` steps invoke.
 RUN set -eux; \
-    sed -i '/^Components:/ s/$/ universe multiverse/' \
-        /etc/apt/sources.list.d/ubuntu.sources; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         build-essential \
-        nasm \
-        yasm \
-        patchelf \
-        pkg-config \
-        cmake \
-        meson \
-        ninja-build \
-        git \
         ca-certificates \
         curl \
         wget \
-        python3 \
-        python3-pip \
-        autoconf \
-        automake \
-        libtool \
-        texinfo \
-        clang \
-        xxd \
-        zlib1g-dev \
-        libbz2-dev \
-        liblzma-dev \
-        libxml2-dev \
-        libgnutls28-dev \
-        libssl-dev \
-        libsnappy-dev \
-        libgmp-dev \
-        libffi-dev \
-        libx264-dev \
-        libx265-dev \
-        libxvidcore-dev \
-        libvpx-dev \
-        libaom-dev \
-        libdav1d-dev \
-        libsvtav1-dev \
-        libsvtav1enc-dev \
-        libtheora-dev \
-        libopenh264-dev \
-        libde265-dev \
-        libwebp-dev \
-        libopenjp2-7-dev \
-        libmp3lame-dev \
-        libopus-dev \
-        libvorbis-dev \
-        libfdk-aac-dev \
-        libtwolame-dev \
-        libgsm1-dev \
-        libspeex-dev \
-        libopencore-amrnb-dev \
-        libopencore-amrwb-dev \
-        libvo-amrwbenc-dev \
-        libshine-dev \
-        libcodec2-dev \
-        libmysofa-dev \
-        libass-dev \
-        libfreetype-dev \
-        libfribidi-dev \
-        libfontconfig1-dev \
-        libharfbuzz-dev \
-        libaribb24-dev \
-        libzimg-dev \
-        librubberband-dev \
-        libsoxr-dev \
-        libvidstab-dev \
-        frei0r-plugins-dev \
-        ladspa-sdk \
-        libbs2b-dev \
-        liblcms2-dev \
-        libplacebo-dev \
-        libtesseract-dev \
-        libleptonica-dev \
-        liblensfun-dev \
-        librtmp-dev \
-        libsrt-gnutls-dev \
-        libssh-dev \
-        libzmq3-dev \
-        librist-dev \
-        libsmbclient-dev \
-        libbluray-dev \
-        libopenmpt-dev \
-        libgme-dev \
-        libmodplug-dev \
-        libchromaprint-dev \
-        libcaca-dev \
-        libva-dev \
-        libvdpau-dev \
-        libvulkan-dev \
-        ocl-icd-opencl-dev \
-        opencl-headers \
-        libvpl-dev \
-        libdrm-dev \
-        libshaderc-dev \
-        glslang-tools \
-        spirv-tools \
-        libdc1394-dev \
-        libcdio-dev \
-        libcdio-paranoia-dev \
-        libopenal-dev \
-        libpulse-dev \
-        libsdl2-dev \
-        libxcb1-dev \
-        libxcb-shm0-dev \
-        libxcb-xfixes0-dev \
-        libxcb-shape0-dev \
-        libv4l-dev \
-        libjack-jackd2-dev \
-        libasound2-dev \
-        libsndio-dev \
-        libgl1-mesa-dev \
-        libegl1-mesa-dev \
-        libgles2-mesa-dev \
-        flite1-dev; \
+        git \
+        xz-utils \
+        bzip2 \
+        file \
+        patch \
+        perl \
+        gettext \
+        texinfo; \
     rm -rf /var/lib/apt/lists/*
 
-# Source-built libs land in /usr/local; make sure the loader sees them.
+# Source-built libs land in /usr/local; make sure the loader sees them across RUN layers.
 RUN set -eux; \
     echo "/usr/local/lib" > /etc/ld.so.conf.d/ffmpeg-local.conf; \
+    echo "/usr/local/lib/x86_64-linux-gnu" >> /etc/ld.so.conf.d/ffmpeg-local.conf; \
     ldconfig
 
-# --- source-built dependencies, one RUN per lib for cacheability ---
-# Only the dependency scripts are copied here (BEFORE the dependency RUN lines) so that
-# editing build-ffmpeg.sh / build-deps.sh does NOT invalidate these cached dep layers.
-# A failure in one library does not invalidate the layers above/below it.
+# --- dependency scripts copied BEFORE the dependency RUNs (so editing build-ffmpeg.sh later
+#     does NOT invalidate these cached layers). common.sh is the shared contract every script
+#     sources; editing it correctly invalidates all dependency layers below. -----------------
 COPY scripts/deps/ /opt/scripts/deps/
 
-RUN bash /opt/scripts/deps/nv-codec-headers.sh
-RUN bash /opt/scripts/deps/amf.sh
-# Newer Vulkan-Headers + libplacebo source builds restore --enable-vulkan and
-# --enable-libplacebo (Ubuntu 24.04's apt versions are too old). vulkan-headers MUST run
-# before libplacebo: libplacebo's vulkan backend needs the newer headers + shadowing .pc.
-RUN bash /opt/scripts/deps/vulkan-headers.sh
-RUN bash /opt/scripts/deps/libplacebo.sh
-RUN bash /opt/scripts/deps/vvenc.sh
-RUN bash /opt/scripts/deps/xeve.sh
-RUN bash /opt/scripts/deps/xevd.sh
-RUN bash /opt/scripts/deps/uavs3d.sh
-RUN bash /opt/scripts/deps/xavs2.sh
-RUN bash /opt/scripts/deps/davs2.sh
-RUN bash /opt/scripts/deps/libaribcaption.sh
-RUN bash /opt/scripts/deps/libvmaf.sh
-RUN bash /opt/scripts/deps/rav1e.sh
+# Each RUN builds one dependency PHASE in order. Grouping (vs one-RUN-per-lib) keeps the layer
+# count sane for ~130 packages while preserving coarse caching + clear failure isolation.
+# `set -e` aborts the layer on the first failing script.
+
+# ---- phase 0: pkg-config (needed by every later verify step) -------------------------------
+RUN set -e; for s in pkgconf; do bash /opt/scripts/deps/$s.sh; done
+
+# ---- phase 1: toolchain (built by the seed compiler) ---------------------------------------
+RUN set -e; for s in zlib zstd bzip2 xz; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in gmp mpfr mpc isl; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in binutils; do bash /opt/scripts/deps/$s.sh; done
+# gcc is the pivotal/slowest layer + installs the $ORIGIN specs; keep it isolated for caching.
+RUN set -e; for s in gcc; do bash /opt/scripts/deps/$s.sh; done
+
+# ---- phase 2: build tools (built by OUR gcc; relocatable from here on) ----------------------
+RUN set -e; for s in m4 autoconf automake libtool nasm yasm; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in libffi openssl ncurses readline sqlite; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in python; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in ninja cmake meson; do bash /opt/scripts/deps/$s.sh; done
+
+# ---- phase 3: media libraries (built by OUR gcc; all get $ORIGIN rpath) --------------------
+# base codec/filter deps
+RUN set -e; for s in libogg libpng libjpeg-turbo expat gperf fftw lcms2; do bash /opt/scripts/deps/$s.sh; done
+# video encoders/decoders (apt-replaced)
+RUN set -e; for s in x264 x265 xvid libvpx aom dav1d svtav1 openh264 libtheora libwebp openjpeg; do bash /opt/scripts/deps/$s.sh; done
+# video encoders/decoders (already source-built; no apt equivalent)
+RUN set -e; for s in vvenc xeve xevd xavs2 davs2 uavs3d rav1e; do bash /opt/scripts/deps/$s.sh; done
+# audio codecs (+ flac for the pulse stack)
+RUN set -e; for s in lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa flac; do bash /opt/scripts/deps/$s.sh; done
+# subtitles / text / fonts
+RUN set -e; for s in freetype fribidi fontconfig harfbuzz libass; do bash /opt/scripts/deps/$s.sh; done
+# filters
+RUN set -e; for s in aribb24 libaribcaption zimg rubberband soxr vidstab frei0r ladspa libbs2b flite; do bash /opt/scripts/deps/$s.sh; done
+# OCR + quality metric
+RUN set -e; for s in leptonica tesseract libvmaf; do bash /opt/scripts/deps/$s.sh; done
+# TLS stack
+RUN set -e; for s in nettle libtasn1 libunistring p11-kit gnutls; do bash /opt/scripts/deps/$s.sh; done
+# network protocols
+RUN set -e; for s in librtmp libsrt libssh libzmq librist; do bash /opt/scripts/deps/$s.sh; done
+# demux / containers / sources
+RUN set -e; for s in libxml2 snappy libgme libmodplug libopenmpt chromaprint libcaca; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in libusb libraw1394 libdc1394 libcdio libcdio-paranoia; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in libbluray; do bash /opt/scripts/deps/$s.sh; done
+# X11 / XCB stack (FFmpeg --enable-libxcb screen grab + SDL2)
+RUN set -e; for s in util-macros xorgproto libxau libxdmcp xcb-proto libpthread-stubs libxcb; do bash /opt/scripts/deps/$s.sh; done
+# audio/video devices
+RUN set -e; for s in alsa-lib; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in sndio openal-soft sdl2; do bash /opt/scripts/deps/$s.sh; done
+# pulse/jack stack (HEAVY/brittle — see scripts/deps/{pulse,jack}.sh notes)
+RUN set -e; for s in libsndfile pulse jack; do bash /opt/scripts/deps/$s.sh; done
+# hardware acceleration: drm / vaapi / vdpau / v4l
+RUN set -e; for s in libdrm libva libvdpau v4l-utils; do bash /opt/scripts/deps/$s.sh; done
+# vulkan (headers + from-source loader)
+RUN set -e; for s in vulkan-headers vulkan-loader; do bash /opt/scripts/deps/$s.sh; done
+# shader compiler stack (libplacebo compute / --enable-libshaderc)
+RUN set -e; for s in spirv-headers spirv-tools glslang shaderc; do bash /opt/scripts/deps/$s.sh; done
+# opengl (libglvnd) / opencl loader / oneVPL
+RUN set -e; for s in libglvnd opencl-headers ocl-icd libvpl; do bash /opt/scripts/deps/$s.sh; done
+# GPU codec headers (nvenc/nvdec/cuvid/ffnvcodec + AMD AMF)
+RUN set -e; for s in nv-codec-headers amf; do bash /opt/scripts/deps/$s.sh; done
+# libplacebo LAST: needs vulkan-loader + shaderc + lcms2 above
+RUN set -e; for s in libplacebo; do bash /opt/scripts/deps/$s.sh; done
+# smbclient via Samba (HEAVIEST/most brittle — see scripts/deps/samba.sh; drop if it blocks CI)
+RUN set -e; for s in samba; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1
 ENV FFMPEG_VERSION=${FFMPEG_VERSION}
 
-# --- entrypoint script copied LAST so edits to it reuse all cached dep layers above ---
-# NO FFmpeg source and NO FFmpeg compile happen in this image. The ENTRYPOINT script
-# downloads + configures + builds + installs + verifies FFmpeg AT `docker run` TIME.
+# --- entrypoint scripts copied LAST so edits to them reuse all cached dep layers above -------
+# NO FFmpeg source and NO FFmpeg compile happen in this image. The ENTRYPOINT downloads +
+# configures + builds + installs + verifies FFmpeg with OUR gcc AT `docker run` TIME, and the
+# resulting bundle is relocatable via the baked $ORIGIN rpath (verified with readelf; no patchelf).
 COPY scripts/build-ffmpeg.sh scripts/build-deps.sh /opt/scripts/
 
-# `docker run <image>` downloads + compiles FFmpeg inside the container, installs it, and
-# runs the verification suite. Pass extra args to override (e.g. `docker run ... bash`).
 ENTRYPOINT ["bash", "/opt/scripts/build-ffmpeg.sh"]

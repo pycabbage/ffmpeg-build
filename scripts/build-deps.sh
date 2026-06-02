@@ -1,43 +1,70 @@
 #!/usr/bin/env bash
-# build-deps.sh — convenience driver that runs every source-lib build script in order.
+# build-deps.sh — ordered driver that builds EVERY from-source dependency, in dependency order.
 #
-# NOTE: The Dockerfile does NOT call this script. For layer cacheability and so that a
-# failure in one library does not invalidate the others, the Dockerfile runs each
-# scripts/deps/<lib>.sh in its OWN RUN layer. This driver exists for local/manual builds
-# and as living documentation of the source-built set and its ordering.
+# This is the canonical ordering (the Dockerfile mirrors it, grouped into per-phase RUN layers
+# for caching). Per docs/todo/001-full-build.md the build no longer apt-installs any libraries:
+# the toolchain, the build tools, and all media libraries are compiled from source into
+# /usr/local by our own from-source gcc. Only an OS-floor bootstrap seed (gcc/make/perl, see the
+# Dockerfile) comes from apt, used solely to compile our gcc.
 #
-# Libraries built from source (NOT available, or not adequate, via Ubuntu 24.04 apt):
-#   nv-codec-headers  - NVENC/NVDEC/CUVID/ffnvcodec/cuda-llvm headers (no apt pkg)
-#   amf               - AMD AMF headers (no apt pkg)
-#   vvenc             - H.266/VVC encoder (no reliable apt pkg)
-#   xeve              - MPEG-5 EVC encoder (no apt pkg)
-#   xevd              - MPEG-5 EVC decoder (no apt pkg)
-#   uavs3d            - AVS3 decoder (no apt pkg)
-#   xavs2             - AVS2 encoder, GPL (no apt pkg)
-#   davs2             - AVS2 decoder, GPL (no apt pkg)
-#   libaribcaption    - ARIB STD-B24 caption renderer (no apt pkg)
-#   libvmaf           - Netflix VMAF (NO libvmaf-dev in 24.04 -> source required)
-#   rav1e             - Rust AV1 encoder (NO apt pkg -> source required)
-#
-# Everything else (x264, x265, vpx, aom, dav1d, svt-av1, opus, vorbis, lame, fdk-aac,
-# libass, freetype, fontconfig, harfbuzz, etc.) is installed via apt -dev packages.
+# Run inside the build image (or any Ubuntu 24.04 with the seed packages) as:
+#     bash scripts/build-deps.sh
+# A failing script aborts the run (set -e). Each scripts/deps/<lib>.sh sources deps/common.sh.
 set -euxo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPS="${HERE}/deps"
 
-for lib in \
-  nv-codec-headers \
-  amf \
-  vvenc \
-  xeve \
-  xevd \
-  uavs3d \
-  xavs2 \
-  davs2 \
-  libaribcaption \
-  libvmaf \
-  rav1e ; do
+# Order matters: each library is built after everything it links against.
+LIBS=(
+  # phase 0: pkg-config (every later verify_pc needs it)
+  pkgconf
+  # phase 1: toolchain (built by the bootstrap seed compiler)
+  zlib zstd bzip2 xz
+  gmp mpfr mpc isl
+  binutils
+  gcc                       # installs the $ORIGIN rpath specs; OUR gcc is used from here on
+  # phase 2: build tools (built by our gcc)
+  m4 autoconf automake libtool nasm yasm
+  libffi openssl ncurses readline sqlite
+  python
+  ninja cmake meson
+  # phase 3: media-library base deps
+  libogg libpng libjpeg-turbo expat gperf fftw lcms2
+  # video codecs
+  x264 x265 xvid libvpx aom dav1d svtav1 openh264 libtheora libwebp openjpeg
+  vvenc xeve xevd xavs2 davs2 uavs3d rav1e
+  # audio codecs (+ flac for the pulse stack)
+  lame opus libvorbis fdk-aac twolame libgsm speex speexdsp opencore-amr vo-amrwbenc shine codec2 libmysofa flac
+  # subtitles / text / fonts
+  freetype fribidi fontconfig harfbuzz libass
+  # filters
+  aribb24 libaribcaption zimg rubberband soxr vidstab frei0r ladspa libbs2b flite
+  # OCR + quality metric
+  leptonica tesseract libvmaf
+  # TLS + network protocols
+  nettle libtasn1 libunistring p11-kit gnutls
+  librtmp libsrt libssh libzmq librist
+  # demux / containers / sources
+  libxml2 snappy libgme libmodplug libopenmpt chromaprint libcaca
+  libusb libraw1394 libdc1394 libcdio libcdio-paranoia
+  libbluray
+  # X11 / XCB stack
+  util-macros xorgproto libxau libxdmcp xcb-proto libpthread-stubs libxcb
+  # audio/video devices
+  alsa-lib sndio openal-soft sdl2
+  libsndfile pulse jack
+  # hardware acceleration
+  libdrm libva libvdpau v4l-utils
+  vulkan-headers vulkan-loader
+  spirv-headers spirv-tools glslang shaderc
+  libglvnd opencl-headers ocl-icd libvpl
+  nv-codec-headers amf
+  libplacebo                # needs vulkan-loader + shaderc + lcms2
+  samba                     # heaviest/most brittle; drop if it blocks the build
+)
+
+for lib in "${LIBS[@]}"; do
   echo "==== building ${lib} ===="
   bash "${DEPS}/${lib}.sh"
 done

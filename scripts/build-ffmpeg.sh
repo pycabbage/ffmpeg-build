@@ -244,9 +244,11 @@ ffmpeg -hide_banner -hwaccels
 # Instead we assemble a relocatable bundle:
 #   <bundle>/ffmpeg  <bundle>/ffprobe  <bundle>/ffplay     (the binaries)
 #   <bundle>/lib/<soname> ...                              (EVERY non-glibc shared dep)
-# The binaries get RPATH '$ORIGIN/lib' and each bundled lib gets RPATH '$ORIGIN', so the
-# whole tree resolves its own libraries relative to its own location -> it runs directly
-# from ./out on the host and from any directory it is later moved/extracted to.
+# The binaries ALREADY carry an $ORIGIN DT_RPATH baked at LINK time by our from-source gcc
+# (scripts/deps/gcc.sh installs a specs file; see scripts/deps/common.sh:ORIGIN_SPECS). OLD
+# DT_RPATH on the executable resolves <bundle>/lib via $ORIGIN/lib AND propagates to every
+# transitively-loaded lib there, so the tree runs directly from ./out on the host and from
+# any directory it is later moved/extracted to -- with NO patchelf rewriting the binaries.
 #
 # Only glibc core + the dynamic loader are EXCLUDED (provided by the host). Everything else
 # (libstdc++, libgcc_s, libcrypt, and all codec/feature libs) is bundled.
@@ -355,20 +357,37 @@ ${ldd_out}
 EOF_LDD
   done
 
-  # Make the bundle relocatable. patchelf must store the LITERAL string $ORIGIN, so it is
-  # SINGLE-QUOTED below (no shell expansion). $ORIGIN is resolved by the dynamic loader at
-  # runtime to the directory of the ELF being loaded.
-  #   - binaries:    look in   <dir-of-binary>/lib
-  #   - bundled libs: look in  <dir-of-lib>     (their bundled siblings live alongside them)
+  # ---- verify relocatability (NO patchelf) ----------------------------------
+  # The bundle is relocatable BY CONSTRUCTION: our from-source gcc baked an $ORIGIN DT_RPATH
+  # into ffmpeg/ffprobe/ffplay at link time, and OLD-style DT_RPATH on the executable
+  # propagates to every transitively-loaded lib in <bundle>/lib. We ASSERT that here and FAIL
+  # the build if a binary lost its $ORIGIN rpath, so a regression surfaces loudly instead of
+  # shipping a broken bundle -- and is fixed at the toolchain/recipe level, never by rewriting
+  # the finished binary.
   for bin in ffmpeg ffprobe ffplay; do
-    if [ -f "${BUNDLE}/${bin}" ]; then
-      patchelf --set-rpath '$ORIGIN/lib' "${BUNDLE}/${bin}" || true
+    [ -f "${BUNDLE}/${bin}" ] || continue
+    rpath_line="$(readelf -d "${BUNDLE}/${bin}" 2>/dev/null | grep -E 'RPATH|RUNPATH' || true)"
+    if printf '%s' "${rpath_line}" | grep -q '\$ORIGIN'; then
+      echo "rpath OK: ${bin} -> $(printf '%s' "${rpath_line}" | sed 's/^[[:space:]]*//')"
+    else
+      echo "FATAL: ${bin} carries no \$ORIGIN RPATH/RUNPATH -- the relocatable bundle would" >&2
+      echo "       break on the host. Expected gcc's specs file to bake it (scripts/deps/gcc.sh," >&2
+      echo "       scripts/deps/common.sh:ORIGIN_SPECS). NOT patching post-hoc; failing instead." >&2
+      exit 1
     fi
   done
+  # Informational: most bundled libs also carry their own $ORIGIN rpath; the handful of
+  # toolchain runtime libs gcc built for itself (libstdc++/libgcc_s, linked before the specs
+  # file existed) carry none and rely on the propagating executable DT_RPATH, which is fine.
+  _withrp=0; _total=0
   for lib in "${BUNDLE}"/lib/*.so*; do
     [ -e "${lib}" ] || continue
-    patchelf --set-rpath '$ORIGIN' "${lib}" || true
+    _total=$((_total + 1))
+    if readelf -d "${lib}" 2>/dev/null | grep -E 'RPATH|RUNPATH' | grep -q '\$ORIGIN'; then
+      _withrp=$((_withrp + 1))
+    fi
   done
+  echo "bundled libs carrying their own \$ORIGIN rpath: ${_withrp}/${_total}"
 
   # ---- export the bundle to /output ----------------------------------------
   echo "Exporting relocatable bundle to /output ..."
