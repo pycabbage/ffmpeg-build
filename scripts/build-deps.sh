@@ -26,7 +26,7 @@ LIBS=(
   gcc                       # installs the $ORIGIN rpath specs; OUR gcc is used from here on
   # phase 2: build tools (built by our gcc)
   m4 autoconf automake libtool nasm yasm
-  libffi openssl ncurses readline sqlite
+  libffi openssl ncurses readline
   python
   ninja cmake meson
   # phase 3: media-library base deps

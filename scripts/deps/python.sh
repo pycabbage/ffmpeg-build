@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # CPython 3.13 — required by ninja bootstrap, meson, and some dep build scripts.
-# Built with --with-openssl so ssl/hashlib work, --with-system-ffi for ctypes,
-# and --enable-loadable-sqlite-extensions for the sqlite3 module.
-# ensurepip is run post-install so pip is available for meson.sh.
+# Built with --with-openssl so ssl/hashlib work and --with-system-ffi for ctypes.
+# The optional _sqlite3 module is intentionally NOT built (no libsqlite3 in this image; the
+# FFmpeg build chain — ninja/cmake/meson/pip — does not need it). ensurepip runs post-install
+# so pip is available for meson.sh.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 
 VER="3.13.3"
@@ -15,7 +16,6 @@ cd "${SRC}"
   --enable-shared \
   --with-openssl="${PREFIX}" \
   --with-system-ffi \
-  --enable-loadable-sqlite-extensions \
   --with-ensurepip=upgrade
 make -j"${JOBS}"
 make install

@@ -90,7 +90,7 @@ RUN set -e; for s in gcc; do bash /opt/scripts/deps/$s.sh; done
 
 # ---- phase 2: build tools (built by OUR gcc; relocatable from here on) ----------------------
 RUN set -e; for s in m4 autoconf automake libtool nasm yasm; do bash /opt/scripts/deps/$s.sh; done
-RUN set -e; for s in libffi openssl ncurses readline sqlite; do bash /opt/scripts/deps/$s.sh; done
+RUN set -e; for s in libffi openssl ncurses readline; do bash /opt/scripts/deps/$s.sh; done
 RUN set -e; for s in python; do bash /opt/scripts/deps/$s.sh; done
 RUN set -e; for s in ninja cmake meson; do bash /opt/scripts/deps/$s.sh; done
 
