@@ -15,6 +15,14 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
   | sh -s -- -y --default-toolchain stable --profile minimal --no-modify-path
 export PATH="${CARGO_HOME}/bin:${PATH}"
 
+# rav1e.sh does not source common.sh, so the from-source libs in /usr/local are not yet on the
+# linker's search path. cargo-c (via its openssl-sys / libz-sys deps) links -lssl/-lcrypto/-lz
+# from /usr/local/lib; without this the final link fails with "unable to find library -lssl".
+# Expose /usr/local to BOTH the cc-driven link (LIBRARY_PATH) and rustc's own link step
+# (RUSTFLAGS -L), so the fix holds whether rustc drives GNU ld via cc or invokes rust-lld directly.
+export LIBRARY_PATH="/usr/local/lib:/usr/local/lib64${LIBRARY_PATH:+:$LIBRARY_PATH}"
+export RUSTFLAGS="-L native=/usr/local/lib -L native=/usr/local/lib64 ${RUSTFLAGS:-}"
+
 # cargo-c provides the `cargo cinstall` subcommand (C-API .so + header + .pc).
 cargo install cargo-c
 
