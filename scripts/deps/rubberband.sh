@@ -14,7 +14,7 @@ meson setup "${SRC}/build" "${SRC}" \
   --default-library shared \
   -Dfft=builtin \
   -Dresampler=builtin \
-  -Dcmdline=false \
+  -Dcmdline=disabled \
   -Dtests=disabled
 ninja -C "${SRC}/build" install
 ldconfig
