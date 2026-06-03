@@ -20,9 +20,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    # The full from-source build (toolchain + ~100 libs) is long. cache-to gha,mode=max makes
-    # every layer reusable, so only the COLD first run is slow -- and that cold run can approach
-    # the 6h hosted-runner ceiling. 360 is the maximum allowed job timeout.
+    # The full from-source build (toolchain + ~100 libs) is long. cache-to type=registry,mode=max
+    # stores every layer in a ghcr.io :buildcache tag (no 10GB gha-cache cap that was evicting the
+    # toolchain layers and forcing full rebuilds), so only the COLD first run is slow -- and that
+    # cold run can approach the 6h hosted-runner ceiling. 360 is the maximum allowed job timeout.
     timeout-minutes: 360
     steps:
       - name: Checkout
@@ -63,8 +64,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Compile FFmpeg inside the builder image
         # The image's ENTRYPOINT (scripts/build-ffmpeg.sh) downloads + builds + verifies FFmpeg
