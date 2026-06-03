@@ -8,13 +8,20 @@ SRC="${SRCROOT}/librist"
 
 fetch_git "https://code.videolan.org/rist/librist.git" "${VER}" "${SRC}"
 cd "${SRC}"
+# Crypto backend = GnuTLS (project standard): librist defaults to use_mbedtls=true (builds a
+# bundled mbedtls), so force it off and select gnutls, which pulls nettle+hogweed+gnutls
+# (all built earlier in the TLS phase; nettle's --libdir=lib fix makes nettle.pc/hogweed.pc
+# resolvable). builtin_cjson=true uses librist's bundled cJSON since we do not ship libcjson.
+# (The previous -Dhave_cjson=false was rejected: the real option name is builtin_cjson.)
 meson setup build \
   --prefix="${PREFIX}" \
   --buildtype=release \
   --default-library=shared \
   -Dtest=false \
   -Dbuilt_tools=false \
-  -Dhave_cjson=false
+  -Dbuiltin_cjson=true \
+  -Duse_mbedtls=false \
+  -Duse_gnutls=true
 ninja -C build -j"${JOBS}"
 ninja -C build install
 ldconfig
