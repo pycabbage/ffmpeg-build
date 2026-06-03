@@ -10,7 +10,8 @@ fetch_git "https://github.com/dyne/frei0r.git" "${VER}" "${SRC}"
 
 cmake -S "${SRC}" -B "${SRC}/build" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX="${PREFIX}"
+  -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
+  -DWITHOUT_OPENCV=ON
 cmake --build "${SRC}/build" --parallel "${JOBS}"
 cmake --install "${SRC}/build"
 ldconfig
