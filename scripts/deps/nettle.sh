@@ -9,8 +9,13 @@ SRC="${SRCROOT}/nettle"
 
 fetch_tar "https://ftp.gnu.org/gnu/nettle/nettle-${VER}.tar.gz" "${SRC}"
 cd "${SRC}"
+# nettle's configure defaults libdir to lib64 on x86_64, which would put libnettle.so /
+# nettle.pc under /usr/local/lib64{,/pkgconfig} — off our PKG_CONFIG_PATH and -L search dir, so
+# verify_pc (and downstream gnutls/p11-kit/librist) would not find it. Pin --libdir to lib to
+# stay consistent with every other from-source lib.
 ./configure \
   --prefix="${PREFIX}" \
+  --libdir="${PREFIX}/lib" \
   --enable-shared \
   --disable-static \
   --disable-documentation
