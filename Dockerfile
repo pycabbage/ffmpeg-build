@@ -108,6 +108,17 @@ RUN set -e; for s in libffi openssl ncurses readline; do bash /opt/scripts/deps/
 RUN set -e; for s in python; do bash /opt/scripts/deps/$s.sh; done
 RUN set -e; for s in ninja cmake meson; do bash /opt/scripts/deps/$s.sh; done
 
+# autopoint (gettext): needed by some phase-3 autotools libs (e.g. fontconfig) whose
+# configure.ac uses AM_GNU_GETTEXT — autoreconf invokes autopoint to stage the gettext
+# infrastructure (config.rpath + m4 macros) into the source tree, else automake fails with
+# "required file './config.rpath' not found". autopoint is only a Recommends of the seed
+# `gettext`, so --no-install-recommends skipped it. Install it HERE (after the cached toolchain
+# layers, before phase 3) so it does not invalidate the expensive gcc layer above.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends autopoint; \
+    rm -rf /var/lib/apt/lists/*
+
 # media-library scripts copied HERE (after the toolchain RUNs) so editing a media recipe does
 # not invalidate the cached phases 0-2 above. This re-copies the whole deps/ dir (incl. the
 # already-copied toolchain scripts; identical content keeps their layers cached).
