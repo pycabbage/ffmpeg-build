@@ -8,11 +8,13 @@ SRC="${SRCROOT}/librist"
 
 fetch_git "https://code.videolan.org/rist/librist.git" "${VER}" "${SRC}"
 cd "${SRC}"
-# Crypto backend = GnuTLS (project standard): librist defaults to use_mbedtls=true (builds a
-# bundled mbedtls), so force it off and select gnutls, which pulls nettle+hogweed+gnutls
-# (all built earlier in the TLS phase; nettle's --libdir=lib fix makes nettle.pc/hogweed.pc
-# resolvable). builtin_cjson=true uses librist's bundled cJSON since we do not ship libcjson.
-# (The previous -Dhave_cjson=false was rejected: the real option name is builtin_cjson.)
+# Crypto backend = GnuTLS/nettle (project standard), NOT the default bundled mbedtls.
+# librist v0.2.11 has an internal inconsistency: it compiles eap.c when
+# have_srp = (mbedcrypto_lib_found or use_gnutls), but the public librist_config.h gates the SRP
+# types on HAVE_SRP_SUPPORT = (mbedcrypto_lib_found or use_NETTLE). With use_gnutls alone, eap.c
+# is built but the SRP types are not defined -> "unknown type librist_verifier_lookup_data_t".
+# So set BOTH use_gnutls and use_nettle to keep the two gates consistent (nettle+hogweed+gnutls
+# were built in the TLS phase). builtin_cjson=true uses the bundled cJSON (we ship no libcjson).
 meson setup build \
   --prefix="${PREFIX}" \
   --buildtype=release \
@@ -21,7 +23,8 @@ meson setup build \
   -Dbuilt_tools=false \
   -Dbuiltin_cjson=true \
   -Duse_mbedtls=false \
-  -Duse_gnutls=true
+  -Duse_gnutls=true \
+  -Duse_nettle=true
 ninja -C build -j"${JOBS}"
 ninja -C build install
 ldconfig
