@@ -119,6 +119,14 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends autopoint; \
     rm -rf /var/lib/apt/lists/*
 
+# Our from-source cmake is 4.x, which removed compatibility with cmake_minimum_required(VERSION
+# <3.5). Several phase-3 libs ship ancient CMakeLists (e.g. soxr, vidstab, frei0r) and would fail
+# "Compatibility with CMake < 3.5 has been removed". This env var (honored by CMake >=3.31) raises
+# the policy floor to 3.5 ONLY for projects declaring a lower minimum; it is a no-op for modern
+# projects. Set globally so every phase-3 cmake build is covered. (FFmpeg itself does not use
+# cmake, so leaving it set in the final image is harmless.)
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
+
 # media-library scripts copied HERE (after the toolchain RUNs) so editing a media recipe does
 # not invalidate the cached phases 0-2 above. This re-copies the whole deps/ dir (incl. the
 # already-copied toolchain scripts; identical content keeps their layers cached).
