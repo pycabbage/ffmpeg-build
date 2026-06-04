@@ -8,7 +8,12 @@ SRC="${SRCROOT}/libraw1394"
 
 fetch_git "https://git.kernel.org/pub/scm/libs/ieee1394/libraw1394.git" "${VER}" "${SRC}"
 cd "${SRC}"
-./autogen.sh --prefix="${PREFIX}" --enable-shared --disable-static
+# libraw1394's autogen.sh only regenerates the autotools files (autoreconf/libtoolize); it does
+# NOT run ./configure, so the --prefix/--enable args were silently ignored and `make` failed with
+# "no makefile found". Regenerate (NOCONFIGURE=1 is honored by GNOME-style autogen, harmless
+# otherwise), then run ./configure explicitly.
+NOCONFIGURE=1 ./autogen.sh
+./configure --prefix="${PREFIX}" --enable-shared --disable-static
 make -j"${JOBS}"
 make install
 ldconfig
