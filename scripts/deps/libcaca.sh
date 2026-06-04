@@ -8,21 +8,21 @@ SRC="${SRCROOT}/libcaca"
 
 fetch_tar "https://github.com/cacalabs/libcaca/releases/download/v${VER}/libcaca-${VER}.tar.bz2" "${SRC}"
 cd "${SRC}"
-# gcc-14 promotes -Wint-conversion (and friends) to errors; libcaca's src/ tools (cacaview's
-# common-image.c) call the internal _caca_alloc2d via a stale nested-extern decl returning int,
-# tripping "pointer from integer". The caca/ LIBRARY itself compiles clean (it builds before
-# src/ in SUBDIRS) — only the bundled tools trip this — so demote those diagnostics for the whole
-# build via CFLAGS. FFmpeg --enable-libcaca links only libcaca.so + caca.pc; the tools are unused.
+# Build/install ONLY the caca/ library subdir. libcaca's src/ CLI tools (cacaview, img2txt) call
+# the library-internal symbol _caca_alloc2d, which is NOT exported from the shared libcaca, so
+# linking the tools fails with "undefined reference to _caca_alloc2d" (a gcc-14 -Wint-conversion
+# warning earlier masked that the decl was bogus). FFmpeg --enable-libcaca needs only the libcaca
+# library, its headers and caca.pc — all produced by caca/ — so we configure the whole project
+# (to generate caca/caca.pc, config.h, caca_types.h) but `make -C caca` to skip src/examples/tools.
 ./configure --prefix="${PREFIX}" \
             --enable-shared --disable-static \
             --disable-doc \
             --disable-java \
             --disable-csharp \
             --disable-ruby \
-            --disable-python \
-            CFLAGS="${CFLAGS:-} -O2 -Wno-int-conversion -Wno-implicit-function-declaration -Wno-implicit-int -Wno-incompatible-pointer-types"
-make -j"${JOBS}"
-make install
+            --disable-python
+make -C caca -j"${JOBS}"
+make -C caca install
 ldconfig
 
 verify_pc caca
