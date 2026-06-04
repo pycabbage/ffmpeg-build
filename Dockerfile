@@ -266,7 +266,7 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/libbluray.sh,target=/opt/scripts/deps/libbluray.sh \
     set -e; for s in libbluray; do bash /opt/scripts/deps/$s.sh; done
-# X11 / XCB stack (FFmpeg --enable-libxcb screen grab + SDL2)
+# X11 / XCB stack (FFmpeg --enable-libxcb screen grab + SDL2; libX11 for vdpau / opengl-GLX)
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/util-macros.sh,target=/opt/scripts/deps/util-macros.sh \
     --mount=type=bind,source=scripts/deps/xorgproto.sh,target=/opt/scripts/deps/xorgproto.sh \
@@ -275,7 +275,9 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/xcb-proto.sh,target=/opt/scripts/deps/xcb-proto.sh \
     --mount=type=bind,source=scripts/deps/libpthread-stubs.sh,target=/opt/scripts/deps/libpthread-stubs.sh \
     --mount=type=bind,source=scripts/deps/libxcb.sh,target=/opt/scripts/deps/libxcb.sh \
-    set -e; for s in util-macros xorgproto libxau libxdmcp xcb-proto libpthread-stubs libxcb; do bash /opt/scripts/deps/$s.sh; done
+    --mount=type=bind,source=scripts/deps/xtrans.sh,target=/opt/scripts/deps/xtrans.sh \
+    --mount=type=bind,source=scripts/deps/libX11.sh,target=/opt/scripts/deps/libX11.sh \
+    set -e; for s in util-macros xorgproto libxau libxdmcp xcb-proto libpthread-stubs libxcb xtrans libX11; do bash /opt/scripts/deps/$s.sh; done
 # audio/video devices
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/alsa-lib.sh,target=/opt/scripts/deps/alsa-lib.sh \

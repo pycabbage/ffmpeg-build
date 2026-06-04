@@ -50,8 +50,8 @@ LIBS=(
   libxml2 snappy libgme libmodplug libopenmpt chromaprint libcaca
   libusb libraw1394 libdc1394 libcdio libcdio-paranoia
   libbluray
-  # X11 / XCB stack
-  util-macros xorgproto libxau libxdmcp xcb-proto libpthread-stubs libxcb
+  # X11 / XCB stack (libX11/xtrans added: vdpau + opengl-GLX need Xlib, not just XCB)
+  util-macros xorgproto libxau libxdmcp xcb-proto libpthread-stubs libxcb xtrans libX11
   # audio/video devices
   alsa-lib sndio openal-soft sdl2
   # hardware acceleration
