@@ -5,7 +5,8 @@
 # NOTE: large project (meson); -Dv4l-utils=false skips the CLI utility programs.
 #       -Dqv4l2=disabled -Dqvidcap=disabled avoids Qt5 dependency entirely.
 #       -Dgconv=disabled avoids glibc iconv module build (requires specific gconv dirs).
-#       No .pc is shipped for libv4l2 upstream; sanity-test via -f.
+#       libv4l2.pc IS shipped (installed to the multiarch pkgconfig dir); verify via pkg-config
+#       just like FFmpeg's --enable-libv4l2 (require_pkg_config libv4l2).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 
 VER="v4l-utils-1.32.0"
@@ -30,8 +31,8 @@ ninja -C "${SRC}/build" -j"${JOBS}"
 ninja -C "${SRC}/build" install
 ldconfig
 
-# No .pc for libv4l2; verify the shared lib is present.
-test -f "${PREFIX}/lib/libv4l/libv4l2.so" || \
-  test -f "${PREFIX}/lib/libv4l2.so" || \
-  die "libv4l2.so not found under ${PREFIX}/lib"
+# Verify libv4l2.pc via pkg-config (it lands in the multiarch pkgconfig dir, on PKG_CONFIG_PATH).
+# This matches what FFmpeg's --enable-libv4l2 requires; the old `test -f ${PREFIX}/lib/libv4l2.so`
+# checked the wrong path (meson installs to ${PREFIX}/lib/x86_64-linux-gnu).
+verify_pc libv4l2
 cleanup "${SRC}"
