@@ -40,6 +40,12 @@ ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pk
 # lib64 included: our from-source gcc installs libstdc++/libgcc_s under /usr/local/lib64.
 ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64"
 ENV SRCROOT="/tmp/src"
+# Build parallelism. Empty default -> common.sh falls back to nproc (CI/full-speed). A constrained
+# host can cap peak CPU/memory with `--build-arg JOBS=N` (e.g. local builds on a small box).
+# common.sh does `: "${JOBS:=$(nproc)}"`, and `:=` treats the empty string as unset, so JOBS=""
+# transparently becomes nproc inside every RUN — CI behavior is unchanged when JOBS is not passed.
+ARG JOBS=
+ENV JOBS=${JOBS}
 
 # --- bootstrap SEED only: OS-floor build tools needed to compile our own toolchain ----------
 # NO libraries, NO cmake/meson/ninja/nasm/yasm/pkg-config, NO patchelf — all built from source.
