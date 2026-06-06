@@ -312,6 +312,15 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/glslang.sh,target=/opt/scripts/deps/glslang.sh \
     --mount=type=bind,source=scripts/deps/shaderc.sh,target=/opt/scripts/deps/shaderc.sh \
     set -e; for s in spirv-headers spirv-tools glslang shaderc; do bash /opt/scripts/deps/$s.sh; done
+# ruby: ocl-icd's build runs icd_generator.rb (a Ruby code generator) over ocl_interface.yaml to
+# emit the loader's dispatch sources. It is a build-time tool only (NOT linked into libOpenCL or
+# any artifact), same category as the seed's perl / the autopoint above. Installed HERE — right
+# before the libglvnd/opencl cluster, after the cached vulkan/spirv/glslang/shaderc layers — so it
+# does not invalidate those expensive layers.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ruby; \
+    rm -rf /var/lib/apt/lists/*
 # opengl (libglvnd, needs libXext for GLX) / opencl loader / oneVPL
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/libXext.sh,target=/opt/scripts/deps/libXext.sh \
