@@ -312,13 +312,14 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/glslang.sh,target=/opt/scripts/deps/glslang.sh \
     --mount=type=bind,source=scripts/deps/shaderc.sh,target=/opt/scripts/deps/shaderc.sh \
     set -e; for s in spirv-headers spirv-tools glslang shaderc; do bash /opt/scripts/deps/$s.sh; done
-# opengl (libglvnd) / opencl loader / oneVPL
+# opengl (libglvnd, needs libXext for GLX) / opencl loader / oneVPL
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/libXext.sh,target=/opt/scripts/deps/libXext.sh \
     --mount=type=bind,source=scripts/deps/libglvnd.sh,target=/opt/scripts/deps/libglvnd.sh \
     --mount=type=bind,source=scripts/deps/opencl-headers.sh,target=/opt/scripts/deps/opencl-headers.sh \
     --mount=type=bind,source=scripts/deps/ocl-icd.sh,target=/opt/scripts/deps/ocl-icd.sh \
     --mount=type=bind,source=scripts/deps/libvpl.sh,target=/opt/scripts/deps/libvpl.sh \
-    set -e; for s in libglvnd opencl-headers ocl-icd libvpl; do bash /opt/scripts/deps/$s.sh; done
+    set -e; for s in libXext libglvnd opencl-headers ocl-icd libvpl; do bash /opt/scripts/deps/$s.sh; done
 # GPU codec headers (nvenc/nvdec/cuvid/ffnvcodec + AMD AMF)
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/nv-codec-headers.sh,target=/opt/scripts/deps/nv-codec-headers.sh \

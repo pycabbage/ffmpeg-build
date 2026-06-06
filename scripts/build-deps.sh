@@ -58,7 +58,9 @@ LIBS=(
   libdrm libva libvdpau v4l-utils
   vulkan-headers vulkan-loader
   spirv-headers spirv-tools glslang shaderc
-  libglvnd opencl-headers ocl-icd libvpl
+  # libXext (X11 ext lib) sits with its consumer libglvnd, not the X11 base stack above, so it
+  # doesn't cache-bust the heavy vulkan/spirv/glslang/shaderc layers; deps (libX11) already built.
+  libXext libglvnd opencl-headers ocl-icd libvpl
   nv-codec-headers amf
   libplacebo                # needs vulkan-loader + shaderc + lcms2
 )
