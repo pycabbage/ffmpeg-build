@@ -334,10 +334,15 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/nv-codec-headers.sh,target=/opt/scripts/deps/nv-codec-headers.sh \
     --mount=type=bind,source=scripts/deps/amf.sh,target=/opt/scripts/deps/amf.sh \
     set -e; for s in nv-codec-headers amf; do bash /opt/scripts/deps/$s.sh; done
-# libplacebo LAST: needs vulkan-loader + shaderc + lcms2 above
+# libplacebo: needs vulkan-loader + shaderc + lcms2 above
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/libplacebo.sh,target=/opt/scripts/deps/libplacebo.sh \
     set -e; for s in libplacebo; do bash /opt/scripts/deps/$s.sh; done
+# clang/LLVM (from source) for FFmpeg --enable-cuda-llvm; placed LAST so it never cache-busts the
+# media-lib layers above (nothing there needs it). Build-time tool only — not in the bundle.
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/llvm.sh,target=/opt/scripts/deps/llvm.sh \
+    set -e; for s in llvm; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1

@@ -63,6 +63,9 @@ LIBS=(
   libXext libglvnd opencl-headers ocl-icd libvpl
   nv-codec-headers amf
   libplacebo                # needs vulkan-loader + shaderc + lcms2
+  # clang/LLVM last: build-time-only tool for FFmpeg --enable-cuda-llvm (compiles CUDA kernels to
+  # PTX). Nothing else depends on it; placed last so it never cache-busts the media-lib layers.
+  llvm
 )
 
 for lib in "${LIBS[@]}"; do
