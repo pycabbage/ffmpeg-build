@@ -62,10 +62,10 @@ LIBS=(
   # doesn't cache-bust the heavy vulkan/spirv/glslang/shaderc layers; deps (libX11) already built.
   libXext libglvnd opencl-headers ocl-icd libvpl
   nv-codec-headers amf
-  libplacebo                # needs vulkan-loader + shaderc + lcms2
-  # clang/LLVM last: build-time-only tool for FFmpeg --enable-cuda-llvm (compiles CUDA kernels to
-  # PTX). Nothing else depends on it; placed last so it never cache-busts the media-lib layers.
+  # clang/LLVM before libplacebo (the last, still-iterated lib) so editing libplacebo doesn't
+  # rebuild this heavy build-time-only tool (compiles CUDA kernels to PTX for --enable-cuda-llvm).
   llvm
+  libplacebo                # needs vulkan-loader + shaderc + lcms2
 )
 
 for lib in "${LIBS[@]}"; do
