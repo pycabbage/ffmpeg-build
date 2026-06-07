@@ -9,7 +9,9 @@
 #
 # Run inside the build image (or any Ubuntu 24.04 with the seed packages) as:
 #     bash scripts/build-deps.sh
-# A failing script aborts the run (set -e). Each scripts/deps/<lib>.sh sources deps/common.sh.
+# A failing script aborts the run (set -e). Most scripts/deps/<lib>.sh source deps/common.sh for
+# the shared PREFIX/JOBS/SRCROOT + LD_RUN_PATH contract; the cargo/x264-style recipes (rav1e,
+# xavs2, davs2, libplacebo) manage their own env and hardcode /usr/local (see their headers).
 set -euxo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +25,7 @@ LIBS=(
   zlib zstd bzip2 xz
   gmp mpfr mpc isl
   binutils
-  gcc                       # installs the $ORIGIN rpath specs; OUR gcc is used from here on
+  gcc                       # OUR gcc is used from here on; the $ORIGIN RPATH comes from common.sh's LD_RUN_PATH + binutils --disable-new-dtags, NOT gcc specs
   # phase 2: build tools (built by our gcc)
   m4 autoconf automake libtool nasm yasm
   libffi openssl ncurses readline
