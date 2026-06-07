@@ -11,6 +11,9 @@ SRC="${SRCROOT}/libjxl"
 fetch_git "https://github.com/libjxl/libjxl" "v${VER}" "${SRC}" --recursive
 mkdir -p "${SRC}/build"
 cd "${SRC}/build"
+# Use OUR gcc-14 for both C and C++ (cmake would otherwise take the seed gcc-13 as `cc` for C),
+# keeping the vendored brotli (C) and libjxl (C++) objects on one toolchain.
+export CC=gcc CXX=g++
 cmake .. \
   -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
   -DCMAKE_BUILD_TYPE=Release \
