@@ -215,38 +215,39 @@ ENABLE_FLAGS=(
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------
-# Per the known good flag set this should drop nothing, but it protects against an FFmpeg
-# version that renamed/removed a flag (e.g. an old --enable-postproc that no longer exists).
+# Per the known good flag set this should drop nothing; it protects against an FFmpeg version
+# that renamed/removed a flag (e.g. an old --enable-postproc that no longer exists).
 #
-# ROBUSTNESS: this net trusts `./configure --help`. A truncated/garbled capture (seen on
-# resource-pressured CI runners -- the job's docker log showed a `write: broken pipe`) would
-# otherwise make it silently DROP perfectly valid flags, including --enable-gpl, after which
-# configure hard-fails with "libcdio is gpl and --enable-gpl is not specified". Guard that:
-# retry the capture, and only trust it (enough to drop anything) once a sentinel that EVERY
-# supported FFmpeg lists -- --enable-gpl -- is present. Otherwise keep ALL flags and warn,
-# since the desired set is known-good (verified locally); a genuinely missing library then
-# fails configure with a clear "X not found" instead of a misleading gpl conflict.
-CONFIGURE_HELP=""
-for _try in 1 2 3; do
-  CONFIGURE_HELP="$(./configure --help 2>/dev/null || true)"
-  printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-gpl\b" && break
-  echo "WARNING: ./configure --help capture looked incomplete (attempt ${_try}/3); retrying"
-  sleep 1
-done
+# ROBUSTNESS (CI): the original check shelled out to `printf | grep` twice PER flag (~180
+# short-lived processes). On resource-pressured hosted runners those intermittently misfired
+# (the job's docker log shows a `write: broken pipe`), reporting perfectly valid flags as
+# "unknown" -- a DIFFERENT scattered set each run -- so configure hard-failed on e.g.
+# "libcdio is gpl and --enable-gpl is not specified" or "gmp is version3 and --enable-version3
+# is not specified". Two guards make it reliable:
+#   1. Match IN-PROCESS with bash `[[ ]]` (no per-flag subprocess, so nothing to misfire). The
+#      trailing space/'=' keeps prefixes distinct (e.g. --enable-libxcb vs --enable-libxcb-shm).
+#   2. The pinned, locally-verified flag set should drop ~nothing, so if the scan wants to drop
+#      more than a couple, the `--help` read was unreliable -> keep ALL flags. A genuinely
+#      removed flag (a real version bump) still drops cleanly when only one or two are missing.
+CONFIGURE_HELP="$(./configure --help 2>/dev/null || true)"
 VALID_FLAGS=()
-if printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-gpl\b"; then
-  for flag in "${ENABLE_FLAGS[@]}"; do
-    name="${flag#--enable-}"
-    if printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-${name}\b" \
-       || printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--disable-${name}\b"; then
-      VALID_FLAGS+=("${flag}")
-    else
-      echo "WARNING: dropping unknown configure flag for this FFmpeg version: ${flag}"
-    fi
-  done
-else
-  echo "WARNING: ./configure --help unreadable after retries; KEEPING ALL ${#ENABLE_FLAGS[@]} flags rather than risk dropping valid ones (e.g. --enable-gpl)"
+DROPPED=()
+for flag in "${ENABLE_FLAGS[@]}"; do
+  name="${flag#--enable-}"
+  if [[ "${CONFIGURE_HELP}" == *"--enable-${name} "*  || "${CONFIGURE_HELP}" == *"--enable-${name}="*  \
+     || "${CONFIGURE_HELP}" == *"--disable-${name} "* || "${CONFIGURE_HELP}" == *"--disable-${name}="* ]]; then
+    VALID_FLAGS+=("${flag}")
+  else
+    DROPPED+=("${flag}")
+  fi
+done
+if [[ ${#DROPPED[@]} -gt 3 ]]; then
+  echo "WARNING: safety net flagged ${#DROPPED[@]} of ${#ENABLE_FLAGS[@]} flags as unknown -- implausible for pinned FFmpeg ${FFMPEG_VERSION}; treating ./configure --help as unreliable and KEEPING ALL flags."
   VALID_FLAGS=("${ENABLE_FLAGS[@]}")
+elif [[ ${#DROPPED[@]} -gt 0 ]]; then
+  for flag in "${DROPPED[@]}"; do
+    echo "WARNING: dropping unknown configure flag for this FFmpeg version: ${flag}"
+  done
 fi
 
 # ---- relocatability: strip pkg-config link flags that fight our $ORIGIN bundle ----------
