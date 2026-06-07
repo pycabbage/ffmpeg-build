@@ -2,24 +2,22 @@
 # libvmaf: Netflix VMAF for FFmpeg --enable-libvmaf.
 # Ubuntu 24.04 has NO libvmaf-dev package (verified) -> always built from source.
 # The buildable project is the libvmaf/ SUBDIR, not the repo root.
-set -euxo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 
 VER="v3.1.0"
-SRC="/tmp/vmaf"
+SRC="${SRCROOT}/vmaf"
 
-git clone --depth 1 --branch "${VER}" \
-  https://github.com/Netflix/vmaf.git "${SRC}"
+fetch_git https://github.com/Netflix/vmaf.git "${VER}" "${SRC}"
 
 meson setup "${SRC}/libvmaf" "${SRC}/libvmaf/build" \
   --buildtype release \
   --default-library shared \
-  --prefix /usr/local \
+  --prefix "${PREFIX}" \
   -Denable_tests=false \
   -Denable_docs=false
-ninja -C "${SRC}/libvmaf/build"
+ninja -C "${SRC}/libvmaf/build" -j"${JOBS}"
 ninja -C "${SRC}/libvmaf/build" install
 ldconfig
 
-pkg-config --exists --print-errors libvmaf
-
-rm -rf "${SRC}"
+verify_pc libvmaf
+cleanup "${SRC}"

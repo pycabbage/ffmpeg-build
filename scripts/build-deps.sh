@@ -9,9 +9,8 @@
 #
 # Run inside the build image (or any Ubuntu 24.04 with the seed packages) as:
 #     bash scripts/build-deps.sh
-# A failing script aborts the run (set -e). Most scripts/deps/<lib>.sh source deps/common.sh for
-# the shared PREFIX/JOBS/SRCROOT + LD_RUN_PATH contract; the cargo/x264-style recipes (rav1e,
-# xavs2, davs2, libplacebo) manage their own env and hardcode /usr/local (see their headers).
+# A failing script aborts the run (set -e). Every scripts/deps/<lib>.sh sources deps/common.sh for
+# the shared PREFIX/JOBS/SRCROOT helpers + the LD_RUN_PATH $ORIGIN-RPATH contract.
 set -euxo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
