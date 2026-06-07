@@ -370,6 +370,11 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/zvbi.sh,target=/opt/scripts/deps/zvbi.sh \
     --mount=type=bind,source=scripts/deps/celt.sh,target=/opt/scripts/deps/celt.sh \
     set -e; for s in quirc zvbi celt; do bash /opt/scripts/deps/$s.sh; done
+# batch 5: vapoursynth (meson, needs Cython), libjxl (JPEG XL; --recursive vendored deps).
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/vapoursynth.sh,target=/opt/scripts/deps/vapoursynth.sh \
+    --mount=type=bind,source=scripts/deps/libjxl.sh,target=/opt/scripts/deps/libjxl.sh \
+    set -e; for s in vapoursynth libjxl; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1

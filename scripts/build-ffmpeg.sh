@@ -203,6 +203,9 @@ ENABLE_FLAGS=(
   --enable-libquirc
   --enable-libzvbi
   --enable-libcelt
+  # batch 5:
+  --enable-vapoursynth
+  --enable-libjxl
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------

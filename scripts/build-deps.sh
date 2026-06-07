@@ -75,6 +75,8 @@ LIBS=(
   libdvdread libdvdnav
   # batch 4: QR decode / teletext / legacy CELT.
   quirc zvbi celt
+  # batch 5: VapourSynth (frameserver) + libjxl (JPEG XL).
+  vapoursynth libjxl
 )
 
 for lib in "${LIBS[@]}"; do
