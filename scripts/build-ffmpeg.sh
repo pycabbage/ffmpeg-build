@@ -206,6 +206,8 @@ ENABLE_FLAGS=(
   # batch 5:
   --enable-vapoursynth
   --enable-libjxl
+  # batch 6:
+  --enable-libiec61883
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------

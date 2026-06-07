@@ -77,6 +77,8 @@ LIBS=(
   quirc zvbi celt
   # batch 5: VapourSynth (frameserver) + libjxl (JPEG XL).
   vapoursynth libjxl
+  # batch 6: FireWire DV capture — libavc1394 (bundles librom1394) + libiec61883.
+  libavc1394 libiec61883
 )
 
 for lib in "${LIBS[@]}"; do

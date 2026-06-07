@@ -375,6 +375,11 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/vapoursynth.sh,target=/opt/scripts/deps/vapoursynth.sh \
     --mount=type=bind,source=scripts/deps/libjxl.sh,target=/opt/scripts/deps/libjxl.sh \
     set -e; for s in vapoursynth libjxl; do bash /opt/scripts/deps/$s.sh; done
+# batch 6: libavc1394 (also builds the bundled librom1394) + libiec61883 (FireWire DV capture).
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/libavc1394.sh,target=/opt/scripts/deps/libavc1394.sh \
+    --mount=type=bind,source=scripts/deps/libiec61883.sh,target=/opt/scripts/deps/libiec61883.sh \
+    set -e; for s in libavc1394 libiec61883; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1
