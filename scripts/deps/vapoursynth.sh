@@ -23,6 +23,13 @@ meson setup build \
 ninja -C build -j"${JOBS}"
 ninja -C build install
 ldconfig
-
-verify_pc vapoursynth vapoursynth-script
+# FFmpeg's vapoursynth check is `require_headers vapoursynth/VSScript4.h vapoursynth/VapourSynth4.h`
+# only — no pkg-config, no link. meson installs those headers to ${PREFIX}/include/vapoursynth
+# (standard), but installs the libs under the Python site-packages dir; symlink them onto the
+# loader path so the API is dlopen-able at runtime.
+find "${PREFIX}"/lib/python*/site-packages/vapoursynth -maxdepth 1 -name 'lib*.so*' 2>/dev/null \
+  | while read -r so; do ln -sf "${so}" "${PREFIX}/lib/$(basename "${so}")"; done
+ldconfig
+test -f "${PREFIX}/include/vapoursynth/VSScript4.h" && test -f "${PREFIX}/include/vapoursynth/VapourSynth4.h" \
+  || die "vapoursynth headers not installed under ${PREFIX}/include/vapoursynth"
 cleanup "${SRC}"
