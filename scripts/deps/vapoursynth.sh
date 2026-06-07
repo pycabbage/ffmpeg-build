@@ -24,9 +24,11 @@ ninja -C build -j"${JOBS}"
 ninja -C build install
 ldconfig
 # FFmpeg's vapoursynth check is `require_headers vapoursynth/VSScript4.h vapoursynth/VapourSynth4.h`
-# only — no pkg-config, no link. meson installs those headers to ${PREFIX}/include/vapoursynth
-# (standard), but installs the libs under the Python site-packages dir; symlink them onto the
-# loader path so the API is dlopen-able at runtime.
+# only (no pkg-config / link). R76's meson installs the Python module + the C libs under the Python
+# site-packages dir and does NOT install the C dev headers — so install those from the source tree
+# into ${PREFIX}/include/vapoursynth, and symlink the libs onto the loader path (dlopen at runtime).
+mkdir -p "${PREFIX}/include/vapoursynth"
+install -m644 include/*.h "${PREFIX}/include/vapoursynth/"
 find "${PREFIX}"/lib/python*/site-packages/vapoursynth -maxdepth 1 -name 'lib*.so*' 2>/dev/null \
   | while read -r so; do ln -sf "${so}" "${PREFIX}/lib/$(basename "${so}")"; done
 ldconfig
