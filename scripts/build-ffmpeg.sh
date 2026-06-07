@@ -205,6 +205,20 @@ for flag in "${ENABLE_FLAGS[@]}"; do
   fi
 done
 
+# ---- relocatability: strip pkg-config link flags that fight our $ORIGIN bundle ----------
+# Some libs (notably SDL2) bake `-Wl,-rpath,<abs> -Wl,--enable-new-dtags` into their .pc Libs:.
+# Any FFmpeg binary that links such a lib (ffplay links SDL2) then gets an absolute DT_RUNPATH
+# instead of the relocatable $ORIGIN DT_RPATH the bundle needs, and the readelf verify below
+# would (correctly) fail. Strip those flags from every .pc on PKG_CONFIG_PATH so all three
+# binaries link uniformly under our LD_RUN_PATH + --disable-new-dtags scheme. This edits build
+# inputs (pkg-config metadata) before configure — not the output binary (no patchelf).
+for pcdir in /usr/local/lib/pkgconfig /usr/local/lib/x86_64-linux-gnu/pkgconfig /usr/local/share/pkgconfig; do
+  [ -d "${pcdir}" ] || continue
+  find "${pcdir}" -name '*.pc' -exec sed -i -E \
+    -e 's@ *-Wl,-rpath,[^ ]+@@g' \
+    -e 's@ *-Wl,--enable-new-dtags@@g' {} +
+done
+
 ./configure \
   --prefix="${PREFIX}" \
   --extra-cflags="-I/usr/local/include" \
