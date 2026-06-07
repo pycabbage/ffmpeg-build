@@ -69,6 +69,8 @@ LIBS=(
   # restored "omitted" libs, appended last to avoid cache-busting the libs above (see Dockerfile).
   # batch 1: standalone codecs/protocols.
   kvazaar libqrencode librabbitmq liblc3
+  # batch 2: iLBC speech codec, SVT JPEG XS.
+  libilbc libsvtjpegxs
 )
 
 for lib in "${LIBS[@]}"; do

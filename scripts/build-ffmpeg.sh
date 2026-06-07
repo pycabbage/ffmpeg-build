@@ -193,6 +193,9 @@ ENABLE_FLAGS=(
   --enable-libqrencode
   --enable-librabbitmq
   --enable-liblc3
+  # batch 2:
+  --enable-libilbc
+  --enable-libsvtjpegxs
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------

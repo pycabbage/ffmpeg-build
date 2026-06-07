@@ -354,6 +354,11 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/librabbitmq.sh,target=/opt/scripts/deps/librabbitmq.sh \
     --mount=type=bind,source=scripts/deps/liblc3.sh,target=/opt/scripts/deps/liblc3.sh \
     set -e; for s in kvazaar libqrencode librabbitmq liblc3; do bash /opt/scripts/deps/$s.sh; done
+# batch 2: libilbc (iLBC speech codec), libsvtjpegxs (SVT JPEG XS enc/dec).
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/libilbc.sh,target=/opt/scripts/deps/libilbc.sh \
+    --mount=type=bind,source=scripts/deps/libsvtjpegxs.sh,target=/opt/scripts/deps/libsvtjpegxs.sh \
+    set -e; for s in libilbc libsvtjpegxs; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1
