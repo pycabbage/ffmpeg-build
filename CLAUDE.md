@@ -33,7 +33,7 @@ Docker リポジトリ。GPL + version3 + nonfree variant。
 | `.dockerignore` | ビルドコンテキストを最小化（イメージは FFmpeg を自分で取得する）。 |
 | `scripts/build-ffmpeg.sh` | **ENTRYPOINT**。`docker run` 時に FFmpeg をダウンロード → configure → build → install → verify → `/output` へバンドル出力。patchelf を使わず `readelf` で `$ORIGIN` RPATH を検証。 |
 | `scripts/build-deps.sh` | **全ソース依存の正準な順序付きドライバ**（依存順の完全リスト）。Dockerfile はこの順序をフェーズ `RUN` にミラーする。ローカル/手動ビルドにも使用。 |
-| `scripts/deps/common.sh` | 全 `deps/*.sh` が source する共通契約: `PREFIX`/`JOBS`、`fetch_git`/`fetch_tar`/`verify_pc`/`cleanup` ヘルパ、および patchelf を置き換える `$ORIGIN` RPATH specs (`ORIGIN_SPECS`)。 |
+| `scripts/deps/common.sh` | 全 `deps/*.sh` が source する共通契約: `PREFIX`/`JOBS`、`fetch_git`/`fetch_tar`/`verify_pc`/`cleanup` ヘルパ、および patchelf を置き換える `$ORIGIN` RPATH 焼き込み用の `LD_RUN_PATH` export（`--disable-new-dtags` の自前 ld が DT_RPATH 化）。 |
 | `scripts/deps/*.sh` | 各ソースビルド依存（ツールチェイン + ビルドツール + 全メディア lib。順序は `build-deps.sh`）。 |
 
 ## バージョン変更方法 (FFMPEG_VERSION)
@@ -69,16 +69,17 @@ naive な「バイナリだけコピー」では、ffmpeg がイメージ内の�
 で失敗する。**旧フローは patchelf でビルド後に RPATH を `$ORIGIN` へ書き換えていた**が、この
 「成果物の事後改変」が 001-full-build で排除した *侵害* である。代わりに **RPATH をリンク時に焼き込む**:
 
-1. **自前 gcc の `specs` で `$ORIGIN` RPATH を全リンクに注入。** `scripts/deps/gcc.sh` が
-   `common.sh:ORIGIN_SPECS` を gcc 専用ディレクトリの `specs` として設置する。以降、自前 gcc が行う
-   **全ての非 static リンク**（実行ファイル・共有ライブラリ双方）に
-   `DT_RPATH = $ORIGIN:$ORIGIN/../lib:$ORIGIN/lib` が自動で付く。注入は gcc ドライバ内部で起きるため、
-   make/シェルの `$` 展開（`$O`→空 で `RIGIN` 化する罠）を貫通してリテラル `$ORIGIN` が保存される。
-   個々の `deps/*.sh` は RPATH フラグを **一切設定しない**（gcc が自動で再配置可能にする）。
-2. **OLD dtags (DT_RPATH) を使う**（`--disable-new-dtags`）。実行ファイルの DT_RPATH は
-   *推移的*に読み込まれる全 lib へ伝播するため、gcc 自身がビルドした（specs 設置前なので RPATH を
-   持たない）`libstdc++.so.6` / `libgcc_s.so.1` も実行ファイルの RPATH で解決できる。DT_RUNPATH では
-   伝播しないので不可。
+1. **`LD_RUN_PATH` で `$ORIGIN` RPATH を全リンクに注入。** `scripts/deps/common.sh` が
+   `LD_RUN_PATH=$ORIGIN:$ORIGIN/../lib:$ORIGIN/lib` を export する。`ld` は明示 `-rpath` の無いリンクで
+   この値をそのまま RPATH として焼くため、自前 gcc/ld が行う **全ての非 static リンク**
+   （実行ファイル・共有ライブラリ双方）に `DT_RPATH = $ORIGIN:$ORIGIN/../lib:$ORIGIN/lib` が自動で付く。
+   `$ORIGIN` は env のリテラルなので make/シェルの `$` 展開を経ずに保存される。個々の `deps/*.sh` は
+   RPATH フラグを **一切設定しない**。gcc の `specs` ファイルは**使わない**（既定 specs は gcc の
+   `--eh-frame-hdr`＝C++ 例外巻き戻しと libgcc_s 自動リンクを壊す。`scripts/deps/gcc.sh` 冒頭コメント参照）。
+2. **OLD dtags (DT_RPATH) を使う**（`scripts/deps/binutils.sh` を `--disable-new-dtags` で構成）。
+   実行ファイルの DT_RPATH は *推移的* に読み込まれる全 lib へ伝播するため、`LD_RUN_PATH` 設定前に
+   ビルドされ RPATH を持たない `libstdc++.so.6` / `libgcc_s.so.1` も実行ファイルの RPATH で解決できる。
+   DT_RUNPATH では伝播しないので不可。
 3. **バンドル収集（fixpoint）。** 3 バイナリを起点に `ldd` を辿り、EXCLUDE 集合（glibc コア + 動的
    ローダのみ）以外の soname を `cp -L` で `$BUNDLE/lib/<soname>` に実体コピー。RPATH は既に焼かれて
    いるので **後処理なし**。`build-ffmpeg.sh` は `readelf -d` で各バイナリに `$ORIGIN` RPATH がある
@@ -109,7 +110,8 @@ FULL-BUILD では **全依存をソースビルド**する。正準な依存順�
 
 - **phase 0 — pkg-config:** `pkgconf`（種コンパイラでビルド。以降の全 `verify_pc` が依存するため最初）。
 - **phase 1 — toolchain（種コンパイラでビルド）:** `zlib` `zstd` `bzip2` `xz` → `gmp` `mpfr` `mpc`
-  `isl` → `binutils` → `gcc`（**ここで `$ORIGIN` RPATH specs を設置**。以降は自前 gcc を使用）。
+  `isl` → `binutils`（`--disable-new-dtags`）→ `gcc`（以降は自前 gcc を使用。`$ORIGIN` RPATH は
+  `common.sh` の `LD_RUN_PATH` で焼かれる。gcc specs は使わない）。
 - **phase 2 — build tools（自前 gcc）:** `m4` `autoconf` `automake` `libtool` `nasm` `yasm` →
   `libffi` `openssl` `ncurses` `readline` `sqlite` → `python` → `ninja` `cmake` `meson`。
 - **phase 3 — メディアライブラリ（自前 gcc、全て `$ORIGIN` RPATH 付き）:** ベース
@@ -124,16 +126,21 @@ FULL-BUILD では **全依存をソースビルド**する。正準な依存順�
   `libsrt` `libssh` `libzmq` `librist`)、demux/source (`libxml2` `snappy` `libgme` `libmodplug`
   `libopenmpt` `chromaprint` `libcaca` `libusb`/`libraw1394`/`libdc1394` `libcdio`/`libcdio-paranoia`
   `libbluray`)、デバイス/HW (`util-macros`→`xorgproto`→`libxau`/`libxdmcp`/`xcb-proto`/
-  `libpthread-stubs`→`libxcb`、`alsa-lib` `sndio` `openal-soft` `sdl2`、
-  `libdrm` `libva` `libvdpau` `v4l-utils`、`vulkan-headers`/`vulkan-loader`、
-  `spirv-headers`→`spirv-tools`→`glslang`→`shaderc`、`libglvnd` `opencl-headers`/`ocl-icd` `libvpl`、
-  `nv-codec-headers` `amf`)、最後に `libplacebo`（vulkan-loader+shaderc+lcms2 が必要）。
+  `libpthread-stubs`→`libxcb`→`xtrans`→`libX11`（vdpau / opengl-GLX は XCB だけでなく Xlib を要する）、
+  `alsa-lib` `sndio` `openal-soft` `sdl2`、`libdrm` `libva` `libvdpau` `v4l-utils`、
+  `vulkan-headers`/`vulkan-loader`、`spirv-headers`→`spirv-tools`→`glslang`→`shaderc`、
+  `libXext`（libglvnd の GLX が要求）→`libglvnd` `opencl-headers`/`ocl-icd` `libvpl`、
+  `nv-codec-headers` `amf`)、`llvm`（clang/LLVM。`--enable-cuda-llvm` 用。libplacebo の手前に置き、
+  libplacebo 反復時に重い clang を再ビルドしない）、最後に `libplacebo`（vulkan-loader+shaderc+lcms2 が必要）。
 
-> **要 CI 検証:** フルビルドのエンドツーエンド検証は未実施（数時間かかる）。`.github/workflows/build.yml`
-> が PR の create/sync でビルダーイメージを `docker build`→ghcr へ push（gha キャッシュ付き）し、
-> `docker run` で FFmpeg をビルドして成果物を artifact 化する。未検証レシピは CI で反復修正する。
-> なお `libsmbclient`(samba) / `libpulse`(pulseaudio) / `libjack`(jack2) はソースビルドが特に脆いため
-> **意図的に外した**（下の「意図的に省略したライブラリ」参照。native AAC のように機能自体は影響軽微）。
+> **エンドツーエンド検証済み（ローカル）:** `docker build`（全依存ソースビルド）→ `docker run`
+> （FFmpeg 8.1.1 コンパイル + `readelf` で 3 バイナリの `$ORIGIN` DT_RPATH 検証 + 再配置可能バンドル
+> 生成）をローカルで完走して確認した（詳細は `docs/todo/001-full-build.md`）。`.github/workflows/build.yml`
+> は PR の create/sync でビルダーイメージを `docker build`→ghcr へ push（`type=registry` キャッシュ）し、
+> `docker run` で FFmpeg をビルドして成果物を artifact 化する。追加した clang/LLVM ビルドは重く、CI
+> ランナーの空きディスクを超え得る点に注意。なお `libsmbclient`(samba) / `libpulse`(pulseaudio) /
+> `libjack`(jack2) はソースビルドが特に脆いため **意図的に外した**（下の「意図的に省略したライブラリ」
+> 参照。native AAC のように機能自体は影響軽微）。
 
 ## 有効化される機能 / 外部ライブラリ
 
@@ -178,16 +185,18 @@ opencl, vulkan, amf）。
   自前 gcc を立ち上げるための **ブートストラップ seed**（種 gcc/make/perl 等。コンパイラは無から
   自分自身をコンパイルできないため不可避で、LFS でもホストツールチェインから bootstrap する）と、
   rav1e 用の rustup（種 Rust。同様に rustc は rustc を要する）。
-- **patchelf 不使用。** 再配置可能性は自前 gcc の `specs` でリンク時に `$ORIGIN` RPATH を焼くことで
-  実現（前述「バンドルの仕組み」）。
+- **patchelf 不使用。** 再配置可能性は `common.sh` の `LD_RUN_PATH` + `--disable-new-dtags` の自前 ld が
+  リンク時に `$ORIGIN` DT_RPATH を焼くことで実現（前述「バンドルの仕組み」。gcc specs は使わない）。
 - **Shared build。** `--enable-shared` を使用し `--pkg-config-flags="--static"` は渡さない。
   各 lib は shared (`.so`) でソースビルドし、`$ORIGIN` RPATH バンドルで配布する。
 - **TLS = GnuTLS**（LGPL、GPL とのフリクションなし）。OpenSSL はソースビルドするが **python の
   ssl/hashlib 用途のみ** で、FFmpeg の TLS バックエンドには使わない（`--enable-openssl` は付けない。
   OpenSSL/GPL nonfree taint と TLS 二重化の回避）。`libsrt` は `-DUSE_ENCLIB=gnutls` でビルド。
 - **QSV は libvpl（modern Intel oneVPL）を使用、libmfx は不使用。** 両者は FFmpeg 上で相互排他。
-- **CUDA は clang/LLVM 経由**（`--enable-cuda-llvm`）。proprietary な NVIDIA CUDA toolkit は
-  ビルド時に不要。`nvcc` / `libnpp`（nonfree）は使わない。
+- **CUDA は clang/LLVM 経由**（`--enable-cuda-llvm`）。proprietary な NVIDIA CUDA toolkit は不要で
+  `nvcc` / `libnpp`（nonfree）は使わない。CUDA フィルタの PTX 化に必要な `clang` は `scripts/deps/llvm.sh`
+  で **ソースビルド**（Release / ターゲットは X86+NVPTX のみ / clang プロジェクトのみ）。ビルド時専用で
+  成果物（FFmpeg バンドル）には非リンク。
 - **vulkan は headers + loader を共にソースビルド。** `vulkan-headers.sh`（Khronos Vulkan-Headers
   >=1.3.277）+ `vulkan-loader.sh`（libvulkan.so + vulkan.pc）。`libplacebo.sh` は meson で
   vulkan + shaderc + lcms2（`lcms2.sh`）付きビルド。**opengl は `libglvnd` をソースビルド**して
