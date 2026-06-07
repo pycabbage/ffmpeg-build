@@ -131,7 +131,12 @@ FULL-BUILD では **全依存をソースビルド**する。正準な依存順�
   `vulkan-headers`/`vulkan-loader`、`spirv-headers`→`spirv-tools`→`glslang`→`shaderc`、
   `libXext`（libglvnd の GLX が要求）→`libglvnd` `opencl-headers`/`ocl-icd` `libvpl`、
   `nv-codec-headers` `amf`)、`llvm`（clang/LLVM。`--enable-cuda-llvm` 用。libplacebo の手前に置き、
-  libplacebo 反復時に重い clang を再ビルドしない）、最後に `libplacebo`（vulkan-loader+shaderc+lcms2 が必要）。
+  libplacebo 反復時に重い clang を再ビルドしない）、`libplacebo`（vulkan-loader+shaderc+lcms2 が必要）。
+  最後に **「省略ライブラリ復活」分**（cache 効率のため末尾に追記。一部は本来 video/audio codec だが位置は末尾）:
+  `kvazaar` `libqrencode` `librabbitmq` `liblc3` → `libilbc` `libsvtjpegxs` → `libdvdread`→`libdvdnav`
+  → `quirc` `zvbi` `celt` → `vapoursynth`(meson+Cython) `libjxl`(--recursive: vendored brotli/highway)
+  → `libavc1394`(librom1394 同梱)→`libiec61883` → `opencv`(core+imgproc) → librsvg チェーン
+  `pcre2`→`glib`→`pixman`→`cairo`→`pango`→`gdk-pixbuf`→`librsvg`(Rust/cargo、rav1e の rustup を再利用)。
 
 > **エンドツーエンド検証済み（ローカル）:** `docker build`（全依存ソースビルド）→ `docker run`
 > （FFmpeg 8.1.1 コンパイル + `readelf` で 3 バイナリの `$ORIGIN` DT_RPATH 検証 + 再配置可能バンドル
@@ -148,24 +153,27 @@ FULL-BUILD では **全依存をソースビルド**する。正準な依存順�
 
 **Video codecs:** libx264, libx265, libxvid, libvpx, libaom, libdav1d, libsvtav1,
 librav1e, libtheora, libopenh264, libvvenc, libxeve, libxevd, libxavs2,
-libdavs2, libwebp, libopenjpeg
+libdavs2, libwebp, libopenjpeg, libkvazaar (HEVC enc), libsvtjpegxs (JPEG XS),
+libjxl (JPEG XL), librsvg (SVG rasterizer)
 
 **Audio codecs:** libmp3lame, libopus, libvorbis, libfdk-aac, libtwolame, libgsm,
 libspeex, libopencore-amrnb, libopencore-amrwb, libvo-amrwbenc, libshine, libcodec2,
-libmysofa
+libmysofa, liblc3 (LC3), libilbc (iLBC), libcelt (legacy CELT)
 
 **Subtitles / text / filters:** libass, libfreetype, libfribidi, libfontconfig,
 libharfbuzz, libaribb24, libaribcaption, libzimg, librubberband, libsoxr, libvidstab,
-libvmaf, frei0r, ladspa, libbs2b, libflite, libplacebo, libtesseract
+libvmaf, frei0r, ladspa, libbs2b, libflite, libplacebo, libtesseract, libopencv (ocv filter),
+libqrencode (qrencode/qrencodesrc), libquirc (qrdecode)
 
 **Protocols / network:** librtmp, libsrt (gnutls flavor), libssh, libzmq, librist,
-gnutls, network
+librabbitmq (amqp), gnutls, network
 
 **Demux / containers / sources:** libbluray, libopenmpt, libgme, libmodplug, chromaprint,
-libcaca, libdc1394, libcdio, libsnappy, libxml2, gmp
+libcaca, libdc1394, libcdio, libsnappy, libxml2, gmp, libdvdread, libdvdnav, libzvbi (teletext),
+vapoursynth (frameserver demuxer)
 
 **Devices / capture / output:** openal, sndio, sdl2, libxcb (+shm
-+xfixes +shape), libv4l2
++xfixes +shape), libv4l2, libiec61883 (FireWire DV/HDV capture)
 
 **Hardware acceleration:** vaapi, vdpau, vulkan (+libshaderc for libplacebo compute),
 opencl, opengl, amf, nvenc, nvdec, cuvid, ffnvcodec, cuda-llvm, libvpl (oneVPL), libdrm,
@@ -174,9 +182,9 @@ v4l2-m2m
 **Misc/core:** shared, pic, pthreads, iconv, zlib, bzlib, lzma, runtime-cpudetect
 （libpostproc は configure フラグを持たず自動でビルドされる）
 
-**検証済み feature counts (FFmpeg 8.1.1):** encoders 243, decoders 569, muxers 195, demuxers 380,
-filters 570, formats 434, protocols 71, hwaccels 8（hwaccels = vdpau, cuda, vaapi, qsv, drm,
-opencl, vulkan, amf）。
+**検証済み feature counts (FFmpeg 8.1.1、省略ライブラリ16本を復活させた後):** encoders 249, decoders 577,
+hwaccels 8（vdpau, cuda, vaapi, qsv, drm, opencl, vulkan, amf）。muxers/demuxers/filters/formats も
+復活分（vapoursynth・dvdnav demuxer、ocv・qrencode・qrencodesrc・qrdecode filter 等）だけ増加している。
 
 ### 設計上の選択
 
@@ -184,7 +192,7 @@ opencl, vulkan, amf）。
   ビルドツール・全 lib を自前 gcc で `/usr/local` にソースビルドする。唯一の例外は OS フロアと
   自前 gcc を立ち上げるための **ブートストラップ seed**（種 gcc/make/perl 等。コンパイラは無から
   自分自身をコンパイルできないため不可避で、LFS でもホストツールチェインから bootstrap する）と、
-  rav1e 用の rustup（種 Rust。同様に rustc は rustc を要する）。
+  rav1e / librsvg 用の rustup（種 Rust。同様に rustc は rustc を要する。cargo は `/opt/rust` に常駐）。
 - **patchelf 不使用。** 再配置可能性は `common.sh` の `LD_RUN_PATH` + `--disable-new-dtags` の自前 ld が
   リンク時に `$ORIGIN` DT_RPATH を焼くことで実現（前述「バンドルの仕組み」。gcc specs は使わない）。
 - **Shared build。** `--enable-shared` を使用し `--pkg-config-flags="--static"` は渡さない。
@@ -237,6 +245,10 @@ libpostproc は自動ビルドのため `--enable-postproc` は **存在しな�
 --enable-libv4l2 --enable-vaapi --enable-vdpau --enable-vulkan --enable-libshaderc --enable-opencl --enable-opengl
 --enable-amf --enable-nvenc --enable-nvdec --enable-cuvid --enable-ffnvcodec --enable-cuda-llvm
 --enable-libvpl --enable-libdrm --enable-v4l2-m2m
+--enable-libkvazaar --enable-libilbc --enable-libsvtjpegxs --enable-liblc3 --enable-libcelt
+--enable-libqrencode --enable-libquirc --enable-librabbitmq --enable-libzvbi
+--enable-libdvdread --enable-libdvdnav --enable-libiec61883 --enable-libopencv
+--enable-libjxl --enable-librsvg --enable-vapoursynth
 ```
 
 ## 意図的に省略したライブラリ（理由つき）
@@ -248,31 +260,20 @@ maximal なフラグ wishlist にあったが、このビルドに **ソース�
 読み替える。必要なら `scripts/deps/<lib>.sh` を追加し `build-deps.sh`/`Dockerfile`/`build-ffmpeg.sh`
 に組み込めば有効化できる。）
 
+> **更新:** かつてここに並んでいた16ライブラリ（libkvazaar, libilbc, libjxl, libsvtjpegxs, liblc3,
+> libzvbi, librsvg, libqrencode, libquirc, librabbitmq, libdvdnav, libdvdread, libiec61883, libcelt,
+> libopencv, vapoursynth）は **from-source レシピを追加して有効化済み**（`scripts/deps/` 参照、
+> エンドツーエンド検証済み）。下表は **現在も省略中** のものだけ。
+
 | Flag | 省略理由 |
 |------|----------|
-| `--enable-libkvazaar` | 24.04 に apt なし、ソースレシピなし。 |
-| `--enable-libilbc` | `libilbc` は Ubuntu archive から削除済み。provider なし。 |
-| `--enable-libxavs` | AVS1 エンコーダ。未パッケージ、レシピなし（xavs2 とは別物）。 |
-| `--enable-libjxl` | 検証済み apt セットに `libjxl-dev` なし、レシピなし。 |
-| `--enable-liboapv` | APV codec。未パッケージ、レシピなし。 |
-| `--enable-libsvtjpegxs` | SVT JPEG-XS。未パッケージ、レシピなし。 |
-| `--enable-liblc3` | LC3 codec。未パッケージ、レシピなし。 |
-| `--enable-libzvbi` | Teletext (`libzvbi-dev`)。検証済み apt セットになし、レシピなし。 |
-| `--enable-librsvg` | `librsvg2-dev`/cairo。検証済み apt セットになし、レシピなし。 |
-| `--enable-libqrencode` | `libqrencode-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-libquirc` | `libquirc-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-librabbitmq` | `librabbitmq-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-libdvdnav` | `libdvdnav-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-libdvdread` | `libdvdread-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-libiec61883` | `libiec61883-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-libcelt` | `libcelt-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-libopencv` | `libopencv-dev`。検証済み apt セットになし、レシピなし。 |
-| `--enable-vapoursynth` | `vapoursynth`。検証済み apt セットになし、レシピなし。 |
+| `--enable-liboapv` | APV codec。リファレンス実装 `AOMediaCodec/openapv` が本環境から公開クローン不可（404/認証要求）。ソースが取得でき次第 `scripts/deps/oapv.sh` 等を追加して有効化可能。 |
+| `--enable-libxavs` | AVS1 エンコーダ。upstream が SourceForge の SVN のみ（git ミラー無し）で再現可能なソース取得が困難（xavs2 とは別物）。 |
 | `--enable-libmfx` | 意図的に drop。選択した `--enable-libvpl` と競合する。 |
 | `--enable-openssl` | 意図的に drop。TLS バックエンドは GnuTLS に一本化。 |
-| `--enable-libuavs3d` | uavs3d v1.1 が FFmpeg 8.1.1 の要求 API より古く compile error。24.04 に新版 provider なし。 |
-| `--enable-liblensfun` | Ubuntu 24.04 の lensfun 0.3.4 に lf_db_create() が無く configure が link 失敗。 |
-| `--enable-libsmbclient` | Samba のソースビルドが非常に重く脆い（独自 waf + python + 大きな依存ツリー）ため、ビルド信頼性を優先して FULL-BUILD では意図的に外した。必要なら `scripts/deps/samba.sh` 相当を追加し再有効化可能。 |
+| `--enable-libuavs3d` | uavs3d v1.1 が FFmpeg 8.1.1 の要求 API より古く compile error。新版 provider なし。 |
+| `--enable-liblensfun` | lensfun 0.3.4 に lf_db_create() が無く configure が link 失敗（レシピ未追加）。 |
+| `--enable-libsmbclient` | Samba のソースビルドが非常に重く脆い（独自 waf + python + 大きな依存ツリー）ため意図的に外した。必要なら `scripts/deps/samba.sh` 相当を追加し再有効化可能。 |
 | `--enable-libpulse` | PulseAudio のソースビルドが重く（hard dep の libsndfile→FLAC を含む）脆いため意図的に外した。必要なら `pulse`/`libsndfile`/`flac` のレシピを追加し再有効化可能。 |
 | `--enable-libjack` | jack2 の waf ビルドが脆いため意図的に外した。必要なら `scripts/deps/jack.sh` 相当を追加し再有効化可能。 |
 

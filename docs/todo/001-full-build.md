@@ -79,6 +79,12 @@ status: implemented
 ### 残作業 / 今後
 
 - フルビルドのエンドツーエンド検証は **完了**（上記）。
+- **「意図的に省略したライブラリ」18 本のうち 16 本を from-source で復活**（フォローオン作業。各々ローカルで
+  build→run 検証済み）: libkvazaar / libqrencode / librabbitmq / liblc3 / libilbc / libsvtjpegxs /
+  libdvdread / libdvdnav / libquirc / libzvbi / libcelt / vapoursynth / libjxl / libiec61883 /
+  libopencv / librsvg（+依存チェーン pcre2/glib/pixman/cairo/pango/gdk-pixbuf, libavc1394+librom1394）。
+  残り 2 本 `liboapv`・`libxavs` は本環境から公開ソースを取得できず未対応（`CLAUDE.md` の表参照）。
+  feature counts: encoders 243→249 / decoders 569→577。
 - **特に脆い 3 つ**（`libsmbclient`=Samba, `libpulse`=PulseAudio(+libsndfile+FLAC), `libjack`=jack2）は
   ソースビルドが壊れやすいため **意図的に drop 済み**（`CLAUDE.md` の「意図的に省略したライブラリ」参照）。
   必要になれば該当レシピと `--enable-*` を再追加して有効化できる。
