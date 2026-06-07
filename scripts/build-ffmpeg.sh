@@ -217,17 +217,37 @@ ENABLE_FLAGS=(
 # ---- safety net: drop any --enable flag this configure does not recognise --------------
 # Per the known good flag set this should drop nothing, but it protects against an FFmpeg
 # version that renamed/removed a flag (e.g. an old --enable-postproc that no longer exists).
-CONFIGURE_HELP="$(./configure --help 2>/dev/null || true)"
-VALID_FLAGS=()
-for flag in "${ENABLE_FLAGS[@]}"; do
-  name="${flag#--enable-}"
-  if printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-${name}\b" \
-     || printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--disable-${name}\b"; then
-    VALID_FLAGS+=("${flag}")
-  else
-    echo "WARNING: dropping unknown configure flag for this FFmpeg version: ${flag}"
-  fi
+#
+# ROBUSTNESS: this net trusts `./configure --help`. A truncated/garbled capture (seen on
+# resource-pressured CI runners -- the job's docker log showed a `write: broken pipe`) would
+# otherwise make it silently DROP perfectly valid flags, including --enable-gpl, after which
+# configure hard-fails with "libcdio is gpl and --enable-gpl is not specified". Guard that:
+# retry the capture, and only trust it (enough to drop anything) once a sentinel that EVERY
+# supported FFmpeg lists -- --enable-gpl -- is present. Otherwise keep ALL flags and warn,
+# since the desired set is known-good (verified locally); a genuinely missing library then
+# fails configure with a clear "X not found" instead of a misleading gpl conflict.
+CONFIGURE_HELP=""
+for _try in 1 2 3; do
+  CONFIGURE_HELP="$(./configure --help 2>/dev/null || true)"
+  printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-gpl\b" && break
+  echo "WARNING: ./configure --help capture looked incomplete (attempt ${_try}/3); retrying"
+  sleep 1
 done
+VALID_FLAGS=()
+if printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-gpl\b"; then
+  for flag in "${ENABLE_FLAGS[@]}"; do
+    name="${flag#--enable-}"
+    if printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-${name}\b" \
+       || printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--disable-${name}\b"; then
+      VALID_FLAGS+=("${flag}")
+    else
+      echo "WARNING: dropping unknown configure flag for this FFmpeg version: ${flag}"
+    fi
+  done
+else
+  echo "WARNING: ./configure --help unreadable after retries; KEEPING ALL ${#ENABLE_FLAGS[@]} flags rather than risk dropping valid ones (e.g. --enable-gpl)"
+  VALID_FLAGS=("${ENABLE_FLAGS[@]}")
+fi
 
 # ---- relocatability: strip pkg-config link flags that fight our $ORIGIN bundle ----------
 # Some libs (notably SDL2) bake `-Wl,-rpath,<abs> -Wl,--enable-new-dtags` into their .pc Libs:.
