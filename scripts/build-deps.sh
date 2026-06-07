@@ -71,6 +71,8 @@ LIBS=(
   kvazaar libqrencode librabbitmq liblc3
   # batch 2: iLBC speech codec, SVT JPEG XS.
   libilbc libsvtjpegxs
+  # batch 3: DVD demux (dvdnav needs dvdread).
+  libdvdread libdvdnav
 )
 
 for lib in "${LIBS[@]}"; do

@@ -359,6 +359,11 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/libilbc.sh,target=/opt/scripts/deps/libilbc.sh \
     --mount=type=bind,source=scripts/deps/libsvtjpegxs.sh,target=/opt/scripts/deps/libsvtjpegxs.sh \
     set -e; for s in libilbc libsvtjpegxs; do bash /opt/scripts/deps/$s.sh; done
+# batch 3: libdvdread + libdvdnav (DVD demux; dvdnav needs dvdread.pc, so dvdread first).
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/libdvdread.sh,target=/opt/scripts/deps/libdvdread.sh \
+    --mount=type=bind,source=scripts/deps/libdvdnav.sh,target=/opt/scripts/deps/libdvdnav.sh \
+    set -e; for s in libdvdread libdvdnav; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1
