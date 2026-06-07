@@ -66,6 +66,9 @@ LIBS=(
   # rebuild this heavy build-time-only tool (compiles CUDA kernels to PTX for --enable-cuda-llvm).
   llvm
   libplacebo                # needs vulkan-loader + shaderc + lcms2
+  # restored "omitted" libs, appended last to avoid cache-busting the libs above (see Dockerfile).
+  # batch 1: standalone codecs/protocols.
+  kvazaar libqrencode librabbitmq liblc3
 )
 
 for lib in "${LIBS[@]}"; do

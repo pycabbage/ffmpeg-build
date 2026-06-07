@@ -344,6 +344,16 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/libplacebo.sh,target=/opt/scripts/deps/libplacebo.sh \
     set -e; for s in libplacebo; do bash /opt/scripts/deps/$s.sh; done
+# --- restored "omitted" libs (appended LAST to avoid cache-busting the ~100 libs above) --------
+# Previously dropped for lack of a recipe; re-added from source. Each batch is appended after the
+# prior so it reuses the full cached image and only builds the new libs.
+# batch 1: standalone codecs/protocols — kvazaar (HEVC enc), libqrencode (QR), librabbitmq (AMQP), liblc3.
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/kvazaar.sh,target=/opt/scripts/deps/kvazaar.sh \
+    --mount=type=bind,source=scripts/deps/libqrencode.sh,target=/opt/scripts/deps/libqrencode.sh \
+    --mount=type=bind,source=scripts/deps/librabbitmq.sh,target=/opt/scripts/deps/librabbitmq.sh \
+    --mount=type=bind,source=scripts/deps/liblc3.sh,target=/opt/scripts/deps/liblc3.sh \
+    set -e; for s in kvazaar libqrencode librabbitmq liblc3; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1

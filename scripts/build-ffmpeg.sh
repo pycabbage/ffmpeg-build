@@ -188,6 +188,11 @@ ENABLE_FLAGS=(
   --enable-libvpl
   --enable-libdrm
   --enable-v4l2-m2m
+  # restored "omitted" libs (see Dockerfile / build-deps.sh). batch 1:
+  --enable-libkvazaar
+  --enable-libqrencode
+  --enable-librabbitmq
+  --enable-liblc3
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------
