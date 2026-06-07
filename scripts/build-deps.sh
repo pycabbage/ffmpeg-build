@@ -81,6 +81,8 @@ LIBS=(
   libavc1394 libiec61883
   # batch 7: OpenCV (core+imgproc) for the ocv filter.
   opencv
+  # batch 8: librsvg chain (SVG rendering) — pcre2->glib->pixman->cairo->pango->gdk-pixbuf->librsvg.
+  pcre2 glib pixman cairo pango gdk-pixbuf librsvg
 )
 
 for lib in "${LIBS[@]}"; do

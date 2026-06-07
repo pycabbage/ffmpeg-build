@@ -384,6 +384,26 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
 RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
     --mount=type=bind,source=scripts/deps/opencv.sh,target=/opt/scripts/deps/opencv.sh \
     set -e; for s in opencv; do bash /opt/scripts/deps/$s.sh; done
+# batch 8 (librsvg chain) — sub-batched so iterating on librsvg never rebuilds glib/cairo/etc.
+# 8a: pcre2 + glib (foundational).
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/pcre2.sh,target=/opt/scripts/deps/pcre2.sh \
+    --mount=type=bind,source=scripts/deps/glib.sh,target=/opt/scripts/deps/glib.sh \
+    set -e; for s in pcre2 glib; do bash /opt/scripts/deps/$s.sh; done
+# 8b: pixman + cairo.
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/pixman.sh,target=/opt/scripts/deps/pixman.sh \
+    --mount=type=bind,source=scripts/deps/cairo.sh,target=/opt/scripts/deps/cairo.sh \
+    set -e; for s in pixman cairo; do bash /opt/scripts/deps/$s.sh; done
+# 8c: pango + gdk-pixbuf.
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/pango.sh,target=/opt/scripts/deps/pango.sh \
+    --mount=type=bind,source=scripts/deps/gdk-pixbuf.sh,target=/opt/scripts/deps/gdk-pixbuf.sh \
+    set -e; for s in pango gdk-pixbuf; do bash /opt/scripts/deps/$s.sh; done
+# 8d: librsvg (Rust via the rustup toolchain rav1e installed at /opt/rust).
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/librsvg.sh,target=/opt/scripts/deps/librsvg.sh \
+    set -e; for s in librsvg; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1

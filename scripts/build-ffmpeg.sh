@@ -210,6 +210,8 @@ ENABLE_FLAGS=(
   --enable-libiec61883
   # batch 7:
   --enable-libopencv
+  # batch 8:
+  --enable-librsvg
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------
