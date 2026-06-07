@@ -16,7 +16,8 @@ meson setup build \
   -Dtests=false \
   -Dintrospection=disabled \
   -Dman=false \
-  -Dgio_sniffing=false
+  -Dgio_sniffing=false \
+  -Dglycin=disabled
 ninja -C build -j"${JOBS}"
 ninja -C build install
 ldconfig
