@@ -79,6 +79,8 @@ LIBS=(
   vapoursynth libjxl
   # batch 6: FireWire DV capture — libavc1394 (bundles librom1394) + libiec61883.
   libavc1394 libiec61883
+  # batch 7: OpenCV (core+imgproc) for the ocv filter.
+  opencv
 )
 
 for lib in "${LIBS[@]}"; do

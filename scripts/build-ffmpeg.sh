@@ -208,6 +208,8 @@ ENABLE_FLAGS=(
   --enable-libjxl
   # batch 6:
   --enable-libiec61883
+  # batch 7:
+  --enable-libopencv
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------

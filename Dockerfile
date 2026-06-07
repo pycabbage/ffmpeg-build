@@ -380,6 +380,10 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/libavc1394.sh,target=/opt/scripts/deps/libavc1394.sh \
     --mount=type=bind,source=scripts/deps/libiec61883.sh,target=/opt/scripts/deps/libiec61883.sh \
     set -e; for s in libavc1394 libiec61883; do bash /opt/scripts/deps/$s.sh; done
+# batch 7: opencv (core+imgproc only) for the ocv video filter.
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/opencv.sh,target=/opt/scripts/deps/opencv.sh \
+    set -e; for s in opencv; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1
