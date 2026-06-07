@@ -9,7 +9,10 @@ SRC="${SRCROOT}/quirc"
 
 fetch_git "https://github.com/dlbeer/quirc" "v${VER}" "${SRC}"
 cd "${SRC}"
-make -j"${JOBS}" libquirc.so          # builds libquirc.so.${VER}
+# SDL_CFLAGS= : the Makefile sets SDL_CFLAGS via `pkg-config --cflags sdl 2>&1` and folds it into
+# QUIRC_CFLAGS used for EVERY object — with no SDL1 present that captures pkg-config's error text
+# into the compile line and breaks it. The library itself needs no SDL, so blank it out.
+make -j"${JOBS}" SDL_CFLAGS= libquirc.so          # builds libquirc.so.${VER}
 install -m755 "libquirc.so.${VER}" "${PREFIX}/lib/"
 ln -sf "libquirc.so.${VER}" "${PREFIX}/lib/libquirc.so"
 ln -sf "libquirc.so.${VER}" "${PREFIX}/lib/libquirc.so.1"

@@ -9,7 +9,8 @@ SRC="${SRCROOT}/zvbi"
 
 fetch_git "https://github.com/zapping-vbi/zvbi" "v${VER}" "${SRC}"
 cd "${SRC}"
-./autogen.sh --prefix="${PREFIX}" --enable-shared --disable-static
+./autogen.sh                 # zvbi's autogen.sh only autoreconfs; it does NOT run ./configure
+./configure --prefix="${PREFIX}" --enable-shared --disable-static
 make -j"${JOBS}" -C src
 make -C src install
 install -m644 zvbi-0.2.pc "${PREFIX}/lib/pkgconfig/"
