@@ -73,6 +73,8 @@ LIBS=(
   libilbc libsvtjpegxs
   # batch 3: DVD demux (dvdnav needs dvdread).
   libdvdread libdvdnav
+  # batch 4: QR decode / teletext / legacy CELT.
+  quirc zvbi celt
 )
 
 for lib in "${LIBS[@]}"; do

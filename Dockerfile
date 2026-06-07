@@ -364,6 +364,12 @@ RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/com
     --mount=type=bind,source=scripts/deps/libdvdread.sh,target=/opt/scripts/deps/libdvdread.sh \
     --mount=type=bind,source=scripts/deps/libdvdnav.sh,target=/opt/scripts/deps/libdvdnav.sh \
     set -e; for s in libdvdread libdvdnav; do bash /opt/scripts/deps/$s.sh; done
+# batch 4: quirc (QR decode), zvbi (teletext/VBI), celt (legacy CELT decode).
+RUN --mount=type=bind,source=scripts/deps/common.sh,target=/opt/scripts/deps/common.sh \
+    --mount=type=bind,source=scripts/deps/quirc.sh,target=/opt/scripts/deps/quirc.sh \
+    --mount=type=bind,source=scripts/deps/zvbi.sh,target=/opt/scripts/deps/zvbi.sh \
+    --mount=type=bind,source=scripts/deps/celt.sh,target=/opt/scripts/deps/celt.sh \
+    set -e; for s in quirc zvbi celt; do bash /opt/scripts/deps/$s.sh; done
 
 # Latest stable verified in the research spec.
 ARG FFMPEG_VERSION=8.1.1

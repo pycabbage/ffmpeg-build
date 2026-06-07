@@ -199,6 +199,10 @@ ENABLE_FLAGS=(
   # batch 3:
   --enable-libdvdread
   --enable-libdvdnav
+  # batch 4:
+  --enable-libquirc
+  --enable-libzvbi
+  --enable-libcelt
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------
