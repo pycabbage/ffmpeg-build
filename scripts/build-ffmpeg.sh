@@ -188,47 +188,32 @@ ENABLE_FLAGS=(
   --enable-libvpl
   --enable-libdrm
   --enable-v4l2-m2m
-  # restored "omitted" libs (see Dockerfile / build-deps.sh). batch 1:
+  # restored "omitted" libs (build order / rationale live in build-deps.sh + Dockerfile)
   --enable-libkvazaar
   --enable-libqrencode
   --enable-librabbitmq
   --enable-liblc3
-  # batch 2:
   --enable-libilbc
   --enable-libsvtjpegxs
-  # batch 3:
   --enable-libdvdread
   --enable-libdvdnav
-  # batch 4:
   --enable-libquirc
   --enable-libzvbi
   --enable-libcelt
-  # batch 5:
   --enable-vapoursynth
   --enable-libjxl
-  # batch 6:
   --enable-libiec61883
-  # batch 7:
   --enable-libopencv
-  # batch 8:
   --enable-librsvg
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------
-# Per the known good flag set this should drop nothing; it protects against an FFmpeg version
-# that renamed/removed a flag (e.g. an old --enable-postproc that no longer exists).
-#
-# ROBUSTNESS (CI): the original check shelled out to `printf | grep` twice PER flag (~180
-# short-lived processes). On resource-pressured hosted runners those intermittently misfired
-# (the job's docker log shows a `write: broken pipe`), reporting perfectly valid flags as
-# "unknown" -- a DIFFERENT scattered set each run -- so configure hard-failed on e.g.
-# "libcdio is gpl and --enable-gpl is not specified" or "gmp is version3 and --enable-version3
-# is not specified". Two guards make it reliable:
-#   1. Match IN-PROCESS with bash `[[ ]]` (no per-flag subprocess, so nothing to misfire). The
-#      trailing space/'=' keeps prefixes distinct (e.g. --enable-libxcb vs --enable-libxcb-shm).
-#   2. The pinned, locally-verified flag set should drop ~nothing, so if the scan wants to drop
-#      more than a couple, the `--help` read was unreliable -> keep ALL flags. A genuinely
-#      removed flag (a real version bump) still drops cleanly when only one or two are missing.
+# Protects against an FFmpeg version that renamed/removed a flag; the known-good set drops
+# nothing. Two reliability guards (a flaky CI run once mis-dropped valid flags and hard-failed
+# configure): (1) match in-process with bash [[ ]] -- no per-flag subprocess to misfire;
+# trailing space/'=' keeps prefixes distinct (--enable-libxcb vs --enable-libxcb-shm). (2) if it
+# would drop more than a couple, the --help read was unreliable -> keep ALL flags (a genuine
+# flag removal, only one or two missing, still drops cleanly).
 CONFIGURE_HELP="$(./configure --help 2>/dev/null || true)"
 VALID_FLAGS=()
 DROPPED=()
@@ -420,15 +405,10 @@ EOF_LDD
   done
 
   # ---- verify relocatability (NO patchelf) ----------------------------------
-  # The bundle is relocatable BY CONSTRUCTION: our from-source gcc baked an $ORIGIN DT_RPATH
-  # into ffmpeg/ffprobe/ffplay at link time, and OLD-style DT_RPATH on the executable
-  # propagates to every transitively-loaded lib in <bundle>/lib. We ASSERT that here and FAIL
-  # the build if a binary lost its $ORIGIN rpath, so a regression surfaces loudly instead of
-  # shipping a broken bundle -- and is fixed at the toolchain/recipe level, never by rewriting
-  # the finished binary.
-  # Require OLD-style DT_RPATH specifically (readelf prints it as "(RPATH)"). DT_RUNPATH is NOT
-  # acceptable: it does not propagate to transitively-loaded libs (libstdc++ -> libgcc_s), so a
-  # bundle whose binaries only had RUNPATH would break on the host even though $ORIGIN is present.
+  # Assert each binary kept its $ORIGIN DT_RPATH (baked at link time, see above) so a regression
+  # fails loudly instead of shipping a broken bundle. Require OLD-style DT_RPATH -- readelf prints
+  # it as "(RPATH)" -- not DT_RUNPATH: only DT_RPATH propagates to transitive deps (libstdc++ ->
+  # libgcc_s), so RUNPATH-only binaries would break on the host even with $ORIGIN present.
   for bin in ffmpeg ffprobe ffplay; do
     [ -f "${BUNDLE}/${bin}" ] || continue
     rpath_line="$(readelf -d "${BUNDLE}/${bin}" 2>/dev/null | grep '(RPATH)' || true)"
@@ -442,9 +422,9 @@ EOF_LDD
       exit 1
     fi
   done
-  # Informational: most bundled libs also carry their own $ORIGIN rpath; the handful of
-  # toolchain runtime libs gcc built for itself (libstdc++/libgcc_s, linked before the specs
-  # file existed) carry none and rely on the propagating executable DT_RPATH, which is fine.
+  # Informational: most bundled libs also carry their own $ORIGIN rpath; the handful of gcc
+  # runtime libs (libstdc++/libgcc_s, built during gcc's own bootstrap) carry none and rely on
+  # the propagating executable DT_RPATH, which is fine.
   _withrp=0; _total=0
   for lib in "${BUNDLE}"/lib/*.so*; do
     [ -e "${lib}" ] || continue

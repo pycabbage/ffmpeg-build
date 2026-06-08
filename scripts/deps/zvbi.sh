@@ -13,7 +13,7 @@ cd "${SRC}"
 ./configure --prefix="${PREFIX}" --enable-shared --disable-static
 make -j"${JOBS}" -C src
 make -C src install
-install -m644 zvbi-0.2.pc "${PREFIX}/lib/pkgconfig/"
+install -Dm644 zvbi-0.2.pc "${PREFIX}/lib/pkgconfig/zvbi-0.2.pc"
 ldconfig
 
 verify_pc zvbi-0.2

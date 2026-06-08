@@ -11,10 +11,10 @@ export RUSTUP_HOME="/opt/rust/rustup" CARGO_HOME="/opt/rust/cargo"
 export PATH="${CARGO_HOME}/bin:${PATH}"
 export CC=gcc CXX=g++
 # librsvg's cargo build links our from-source C libs (-lz -lpng16 -lxml2 -lfontconfig -lfreetype),
-# but rustc/rust-lld doesn't search /usr/local/lib. Expose it to BOTH the cc-driven link
+# but rustc/rust-lld doesn't search ${PREFIX}/lib. Expose it to BOTH the cc-driven link
 # (LIBRARY_PATH) and rustc's own link step (RUSTFLAGS -L), exactly as rav1e.sh does.
-export LIBRARY_PATH="/usr/local/lib:/usr/local/lib64${LIBRARY_PATH:+:$LIBRARY_PATH}"
-export RUSTFLAGS="-L native=/usr/local/lib -L native=/usr/local/lib64 ${RUSTFLAGS:-}"
+export LIBRARY_PATH="${PREFIX}/lib:${PREFIX}/lib64${LIBRARY_PATH:+:$LIBRARY_PATH}"
+export RUSTFLAGS="-L native=${PREFIX}/lib -L native=${PREFIX}/lib64 ${RUSTFLAGS:-}"
 
 fetch_tar "https://download.gnome.org/sources/librsvg/2.62/librsvg-${VER}.tar.xz" "${SRC}"
 cd "${SRC}"
