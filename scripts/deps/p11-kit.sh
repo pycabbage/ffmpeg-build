@@ -9,11 +9,13 @@ SRC="${SRCROOT}/p11-kit"
 fetch_tar "https://github.com/p11-glue/p11-kit/releases/download/${VER}/p11-kit-${VER}.tar.xz" "${SRC}"
 cd "${SRC}"
 mkdir -p build
+# -Dtrust_paths points at the HOST's system CA dir (/etc/ssl/certs), not ${PREFIX} (which only
+# exists inside the build image) -- the relocatable bundle relies on the host for system CAs.
 meson setup build \
   --prefix="${PREFIX}" \
   --buildtype=release \
   --default-library=shared \
-  -Dtrust_paths="${PREFIX}/etc/ssl/certs" \
+  -Dtrust_paths="/etc/ssl/certs" \
   -Dman=false \
   -Dgtk_doc=false
 ninja -C build -j"${JOBS}"

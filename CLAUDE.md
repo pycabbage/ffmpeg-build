@@ -98,6 +98,10 @@ EXCLUDE 集合（ホスト提供の glibc コア + ローダ）: `ld-linux-x86-6
 - **ハードウェアアクセラレーションは実行時にホストドライバが別途必要。** nvenc/nvdec/cuda、vaapi、
   vdpau、vulkan、opencl などはホスト側のドライバ / ローダ（NVIDIA driver、libva ドライバ等）を
   必要とし、これらはバンドルしない。
+- **TLS の CA 証明書はホスト依存。** GnuTLS のデフォルト trust store はホスト標準の
+  `/etc/ssl/certs/ca-certificates.crt`（p11-kit は `/etc/ssl/certs`）を指す。Debian/Ubuntu ホストでは
+  そのまま TLS 検証が機能する。CA バンドルが別パスのディストリ（RHEL 系等）では FFmpeg の
+  `ca_file=` / `tls_verify` で明示する（バンドルは CA を内包しない）。
 - 各 export ステップは `set -euo pipefail` 下でも安全なよう必要箇所を `|| true` でガードするが、
   バンドル本体（バイナリ + lib コピー + tarball）は実際に生成される。`/output` 未マウント時は
   マウント方法のヒントを表示するだけで失敗扱いにはならない。
