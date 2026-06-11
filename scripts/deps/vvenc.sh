@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 # vvenc: Fraunhofer HHI H.266/VVC encoder for FFmpeg --enable-libvvenc (FFmpeg >= 6.1).
 # Not reliably packaged in Ubuntu 24.04 -> always built from source.
-set -euxo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "${HERE}/common.sh"
 
 VER="v1.14.0"
-SRC="/tmp/vvenc"
+SRC="${SRCROOT}/vvenc"
 
-git clone --depth 1 --branch "${VER}" \
-  https://github.com/fraunhoferhhi/vvenc.git "${SRC}"
+fetch_git https://github.com/fraunhoferhhi/vvenc.git "${VER}" "${SRC}"
 
-# The convenience target builds Release + shared and installs libvvenc.pc.
-make -C "${SRC}" install-release-shared install-prefix=/usr/local
+# The convenience target builds Release + shared and installs libvvenc.pc. LD_RUN_PATH (exported
+# by common.sh) bakes the $ORIGIN RPATH into libvvenc.so at link time.
+make -C "${SRC}" install-release-shared install-prefix="${PREFIX}"
 ldconfig
 
-pkg-config --exists --print-errors libvvenc
-
-rm -rf "${SRC}"
+verify_pc libvvenc
+cleanup "${SRC}"

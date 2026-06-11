@@ -19,6 +19,12 @@ SRC="/tmp/ffmpeg-src"
 
 # pkg-config must see /usr/local FIRST for the source-built libs.
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH:-}"
+# Relocatable RPATH for the FFmpeg binaries + libav* .so: our --disable-new-dtags ld bakes
+# LD_RUN_PATH as DT_RPATH at link time (no patchelf). Single-quoted so $ORIGIN stays literal.
+export LD_RUN_PATH='$ORIGIN:$ORIGIN/../lib:$ORIGIN/lib'
+# lib64 on the loader path so the in-image ffmpeg run (verification below) finds our
+# libstdc++/libgcc_s, which gcc installs under /usr/local/lib64.
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:/usr/local/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 # ---- download + extract source --------------------------------------------
 # The image does NOT bake FFmpeg source. We always download the requested release into a
@@ -148,7 +154,6 @@ ENABLE_FLAGS=(
   --enable-libssh
   --enable-libzmq
   --enable-librist
-  --enable-libsmbclient
   --enable-libbluray
   --enable-libopenmpt
   --enable-libgme
@@ -158,8 +163,6 @@ ENABLE_FLAGS=(
   --enable-libdc1394
   --enable-libcdio
   --enable-openal
-  --enable-libpulse
-  --enable-libjack
   --enable-sndio
   --enable-sdl2
   --enable-libxcb
@@ -185,21 +188,65 @@ ENABLE_FLAGS=(
   --enable-libvpl
   --enable-libdrm
   --enable-v4l2-m2m
+  # restored "omitted" libs (build order / rationale live in build-deps.sh + Dockerfile)
+  --enable-libkvazaar
+  --enable-libqrencode
+  --enable-librabbitmq
+  --enable-liblc3
+  --enable-libilbc
+  --enable-libsvtjpegxs
+  --enable-libdvdread
+  --enable-libdvdnav
+  --enable-libquirc
+  --enable-libzvbi
+  --enable-libcelt
+  --enable-vapoursynth
+  --enable-libjxl
+  --enable-libiec61883
+  --enable-libopencv
+  --enable-librsvg
 )
 
 # ---- safety net: drop any --enable flag this configure does not recognise --------------
-# Per the known good flag set this should drop nothing, but it protects against an FFmpeg
-# version that renamed/removed a flag (e.g. an old --enable-postproc that no longer exists).
+# Protects against an FFmpeg version that renamed/removed a flag; the known-good set drops
+# nothing. Two reliability guards (a flaky CI run once mis-dropped valid flags and hard-failed
+# configure): (1) match in-process with bash [[ ]] -- no per-flag subprocess to misfire;
+# trailing space/'=' keeps prefixes distinct (--enable-libxcb vs --enable-libxcb-shm). (2) if it
+# would drop more than a couple, the --help read was unreliable -> keep ALL flags (a genuine
+# flag removal, only one or two missing, still drops cleanly).
 CONFIGURE_HELP="$(./configure --help 2>/dev/null || true)"
 VALID_FLAGS=()
+DROPPED=()
 for flag in "${ENABLE_FLAGS[@]}"; do
   name="${flag#--enable-}"
-  if printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--enable-${name}\b" \
-     || printf '%s\n' "${CONFIGURE_HELP}" | grep -q -- "--disable-${name}\b"; then
+  if [[ "${CONFIGURE_HELP}" == *"--enable-${name} "*  || "${CONFIGURE_HELP}" == *"--enable-${name}="*  \
+     || "${CONFIGURE_HELP}" == *"--disable-${name} "* || "${CONFIGURE_HELP}" == *"--disable-${name}="* ]]; then
     VALID_FLAGS+=("${flag}")
   else
-    echo "WARNING: dropping unknown configure flag for this FFmpeg version: ${flag}"
+    DROPPED+=("${flag}")
   fi
+done
+if [[ ${#DROPPED[@]} -gt 3 ]]; then
+  echo "WARNING: safety net flagged ${#DROPPED[@]} of ${#ENABLE_FLAGS[@]} flags as unknown -- implausible for pinned FFmpeg ${FFMPEG_VERSION}; treating ./configure --help as unreliable and KEEPING ALL flags."
+  VALID_FLAGS=("${ENABLE_FLAGS[@]}")
+elif [[ ${#DROPPED[@]} -gt 0 ]]; then
+  for flag in "${DROPPED[@]}"; do
+    echo "WARNING: dropping unknown configure flag for this FFmpeg version: ${flag}"
+  done
+fi
+
+# ---- relocatability: strip pkg-config link flags that fight our $ORIGIN bundle ----------
+# Some libs (notably SDL2) bake `-Wl,-rpath,<abs> -Wl,--enable-new-dtags` into their .pc Libs:.
+# Any FFmpeg binary that links such a lib (ffplay links SDL2) then gets an absolute DT_RUNPATH
+# instead of the relocatable $ORIGIN DT_RPATH the bundle needs, and the readelf verify below
+# would (correctly) fail. Strip those flags from every .pc on PKG_CONFIG_PATH so all three
+# binaries link uniformly under our LD_RUN_PATH + --disable-new-dtags scheme. This edits build
+# inputs (pkg-config metadata) before configure — not the output binary (no patchelf).
+for pcdir in /usr/local/lib/pkgconfig /usr/local/lib/x86_64-linux-gnu/pkgconfig /usr/local/share/pkgconfig; do
+  [ -d "${pcdir}" ] || continue
+  find "${pcdir}" -name '*.pc' -exec sed -i -E \
+    -e 's@ *-Wl,-rpath,[^ ]+@@g' \
+    -e 's@ *-Wl,--enable-new-dtags@@g' {} +
 done
 
 ./configure \
@@ -244,9 +291,11 @@ ffmpeg -hide_banner -hwaccels
 # Instead we assemble a relocatable bundle:
 #   <bundle>/ffmpeg  <bundle>/ffprobe  <bundle>/ffplay     (the binaries)
 #   <bundle>/lib/<soname> ...                              (EVERY non-glibc shared dep)
-# The binaries get RPATH '$ORIGIN/lib' and each bundled lib gets RPATH '$ORIGIN', so the
-# whole tree resolves its own libraries relative to its own location -> it runs directly
-# from ./out on the host and from any directory it is later moved/extracted to.
+# The binaries ALREADY carry an $ORIGIN DT_RPATH baked at LINK time via LD_RUN_PATH (exported
+# above) + our --disable-new-dtags ld (scripts/deps/binutils.sh) -- no gcc specs file, no
+# patchelf. OLD DT_RPATH on the executable resolves <bundle>/lib via $ORIGIN/lib AND propagates
+# to every transitively-loaded lib there, so the tree runs directly from ./out on the host and
+# from any directory it is later moved/extracted to -- with NO patchelf rewriting the binaries.
 #
 # Only glibc core + the dynamic loader are EXCLUDED (provided by the host). Everything else
 # (libstdc++, libgcc_s, libcrypt, and all codec/feature libs) is bundled.
@@ -355,20 +404,36 @@ ${ldd_out}
 EOF_LDD
   done
 
-  # Make the bundle relocatable. patchelf must store the LITERAL string $ORIGIN, so it is
-  # SINGLE-QUOTED below (no shell expansion). $ORIGIN is resolved by the dynamic loader at
-  # runtime to the directory of the ELF being loaded.
-  #   - binaries:    look in   <dir-of-binary>/lib
-  #   - bundled libs: look in  <dir-of-lib>     (their bundled siblings live alongside them)
+  # ---- verify relocatability (NO patchelf) ----------------------------------
+  # Assert each binary kept its $ORIGIN DT_RPATH (baked at link time, see above) so a regression
+  # fails loudly instead of shipping a broken bundle. Require OLD-style DT_RPATH -- readelf prints
+  # it as "(RPATH)" -- not DT_RUNPATH: only DT_RPATH propagates to transitive deps (libstdc++ ->
+  # libgcc_s), so RUNPATH-only binaries would break on the host even with $ORIGIN present.
   for bin in ffmpeg ffprobe ffplay; do
-    if [ -f "${BUNDLE}/${bin}" ]; then
-      patchelf --set-rpath '$ORIGIN/lib' "${BUNDLE}/${bin}" || true
+    [ -f "${BUNDLE}/${bin}" ] || continue
+    rpath_line="$(readelf -d "${BUNDLE}/${bin}" 2>/dev/null | grep '(RPATH)' || true)"
+    if printf '%s' "${rpath_line}" | grep -q '\$ORIGIN'; then
+      echo "rpath OK: ${bin} -> $(printf '%s' "${rpath_line}" | sed 's/^[[:space:]]*//')"
+    else
+      echo "FATAL: ${bin} carries no \$ORIGIN DT_RPATH (old dtags) -- the relocatable bundle" >&2
+      echo "       would break on the host. DT_RUNPATH is insufficient (it does not propagate to" >&2
+      echo "       transitive deps like libstdc++->libgcc_s). Expected LD_RUN_PATH + our" >&2
+      echo "       --disable-new-dtags ld to bake it. NOT patching post-hoc; failing instead." >&2
+      exit 1
     fi
   done
+  # Informational: most bundled libs also carry their own $ORIGIN rpath; the handful of gcc
+  # runtime libs (libstdc++/libgcc_s, built during gcc's own bootstrap) carry none and rely on
+  # the propagating executable DT_RPATH, which is fine.
+  _withrp=0; _total=0
   for lib in "${BUNDLE}"/lib/*.so*; do
     [ -e "${lib}" ] || continue
-    patchelf --set-rpath '$ORIGIN' "${lib}" || true
+    _total=$((_total + 1))
+    if readelf -d "${lib}" 2>/dev/null | grep '(RPATH)' | grep -q '\$ORIGIN'; then
+      _withrp=$((_withrp + 1))
+    fi
   done
+  echo "bundled libs carrying their own \$ORIGIN rpath: ${_withrp}/${_total}"
 
   # ---- export the bundle to /output ----------------------------------------
   echo "Exporting relocatable bundle to /output ..."
